@@ -1,0 +1,171 @@
+{
+  "projectType": "framework",
+  "projectName": "Discord Player",
+  "projectDescription": "Complete framework to simplify the implementation of music commands using discord.js v14",
+  "theme": "aspen",
+  "primaryColor": "#5865F2",
+  "lightColor": "#7289DA",
+  "darkColor": "#4752C4",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "core/player",
+              "core/queue",
+              "core/tracks",
+              "core/events",
+              "core/hooks"
+            ]
+          },
+          {
+            "group": "Extractors",
+            "pages": [
+              "extractors/overview",
+              "extractors/default-extractors",
+              "extractors/custom-extractors"
+            ]
+          },
+          {
+            "group": "Audio Features",
+            "pages": [
+              "audio/filters",
+              "audio/equalizer",
+              "audio/volume-control",
+              "audio/stream-config"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/query-caching",
+              "advanced/serialization",
+              "advanced/ip-rotation",
+              "advanced/eris-oceanic",
+              "advanced/stream-interceptor"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/voice-states",
+              "guides/queue-management",
+              "guides/error-handling",
+              "guides/debugging"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/player",
+              "api/guild-queue",
+              "api/track",
+              "api/playlist",
+              "api/search-result"
+            ]
+          },
+          {
+            "group": "Queue Management",
+            "pages": [
+              "api/guild-queue-player-node",
+              "api/guild-queue-history",
+              "api/guild-queue-statistics",
+              "api/guild-node-manager"
+            ]
+          },
+          {
+            "group": "Audio Processing",
+            "pages": [
+              "api/guild-queue-audio-filters",
+              "api/stream-dispatcher",
+              "api/audio-filters"
+            ]
+          },
+          {
+            "group": "Extractors",
+            "pages": [
+              "api/base-extractor",
+              "api/extractor-execution-context"
+            ]
+          },
+          {
+            "group": "Hooks",
+            "pages": [
+              "api/hooks/use-main-player",
+              "api/hooks/use-queue",
+              "api/hooks/use-history",
+              "api/hooks/use-timeline",
+              "api/hooks/use-metadata",
+              "api/hooks/use-volume"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/query-resolver",
+              "api/query-cache",
+              "api/voice-utils",
+              "api/lyrics"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Automatic queue management with customizable strategies",
+    "64+ built-in audio filter presets with equalizer support",
+    "Extensible extractors API for Spotify, SoundCloud, Apple Music, and more",
+    "React-like hooks system for cleaner code organization",
+    "Built-in query caching and IP rotation support",
+    "Voice state handling and connection management",
+    "Serialization and deserialization for persistent queues",
+    "Support for Discord.js, Eris, and Oceanic.js"
+  ],
+  "publicApiSurface": [
+    "Player",
+    "GuildQueue",
+    "Track",
+    "Playlist",
+    "SearchResult",
+    "BaseExtractor",
+    "GuildQueuePlayerNode",
+    "GuildQueueHistory",
+    "GuildQueueAudioFilters",
+    "StreamDispatcher",
+    "useMainPlayer",
+    "useQueue",
+    "useHistory",
+    "useTimeline",
+    "useMetadata",
+    "useVolume",
+    "QueryResolver",
+    "QueryCache",
+    "AudioFilters",
+    "createErisCompat",
+    "createOceanicCompat",
+    "DefaultExtractors",
+    "AppleMusicExtractor",
+    "SpotifyExtractor",
+    "SoundCloudExtractor",
+    "AttachmentExtractor",
+    "VimeoExtractor",
+    "ReverbnationExtractor"
+  ]
+}
