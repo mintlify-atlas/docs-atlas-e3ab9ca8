@@ -1,0 +1,361 @@
+---
+title: Playlist
+description: Represents a collection of tracks from a playlist or album
+icon: list-music
+---
+
+The `Playlist` class represents a collection of tracks from sources like Spotify playlists, YouTube playlists, or albums.
+
+## Properties
+
+<ResponseField name="id" type="string">
+  Unique playlist identifier
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Playlist title
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Playlist description
+</ResponseField>
+
+<ResponseField name="thumbnail" type="string">
+  Playlist thumbnail/cover art URL
+</ResponseField>
+
+<ResponseField name="type" type="'album' | 'playlist'">
+  Whether this is an album or playlist
+</ResponseField>
+
+<ResponseField name="source" type="TrackSource">
+  Source platform: "youtube", "soundcloud", "spotify", "apple_music", or "arbitrary"
+</ResponseField>
+
+<ResponseField name="author" type="object">
+  Playlist author information
+  
+  <Expandable title="Author properties">
+    <ResponseField name="name" type="string">
+      Author name
+    </ResponseField>
+    
+    <ResponseField name="url" type="string">
+      Author profile URL
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Playlist URL
+</ResponseField>
+
+<ResponseField name="tracks" type="Track[]">
+  Array of tracks in this playlist
+</ResponseField>
+
+<ResponseField name="player" type="Player">
+  The player instance
+</ResponseField>
+
+<ResponseField name="rawPlaylist" type="any">
+  Raw playlist data from the extractor
+</ResponseField>
+
+<ResponseField name="estimatedDuration" type="number">
+  Total duration of all tracks in milliseconds
+</ResponseField>
+
+<ResponseField name="durationFormatted" type="string">
+  Formatted total duration (e.g., "1:23:45")
+</ResponseField>
+
+## Methods
+
+### toJSON()
+
+Convert playlist to JSON:
+
+```typescript
+const json = playlist.toJSON();
+console.log(json.title, json.tracks.length);
+```
+
+<ParamField path="withTracks" type="boolean" default="true">
+  Whether to include track data in JSON
+</ParamField>
+
+<ResponseField name="returns" type="PlaylistJSON">
+  JSON representation of the playlist
+</ResponseField>
+
+### serialize()
+
+Serialize playlist for storage:
+
+```typescript
+const serialized = playlist.serialize();
+await db.playlists.save(serialized);
+```
+
+<ResponseField name="returns" type="SerializedPlaylist">
+  Serialized playlist data including all tracks
+</ResponseField>
+
+### fromSerialized()
+
+Deserialize playlist from storage:
+
+```typescript
+const data = await db.playlists.get(playlistId);
+const playlist = Playlist.fromSerialized(player, data);
+```
+
+<ParamField path="player" type="Player" required>
+  Player instance
+</ParamField>
+
+<ParamField path="data" type="SerializedPlaylist" required>
+  Serialized playlist data
+</ParamField>
+
+<ResponseField name="returns" type="Playlist">
+  Reconstructed playlist instance
+</ResponseField>
+
+### play()
+
+Play this playlist:
+
+```typescript
+await playlist.play(voiceChannel, {
+  nodeOptions: { metadata: interaction }
+});
+```
+
+<ParamField path="channel" type="GuildVoiceChannelResolvable" required>
+  Voice channel to play in
+</ParamField>
+
+<ParamField path="options" type="PlayerNodeInitializerOptions">
+  Play options
+</ParamField>
+
+<ResponseField name="returns" type="Promise<PlayerNodeInitializationResult>">
+  Play result with first track and queue info
+</ResponseField>
+
+## Iterating Tracks
+
+Playlists are iterable:
+
+```typescript
+// Using for...of
+for (const track of playlist) {
+  console.log(track.title);
+}
+
+// Using spread operator
+const allTracks = [...playlist];
+
+// Direct array access
+const firstTrack = playlist.tracks[0];
+const trackCount = playlist.tracks.length;
+```
+
+## Example Usage
+
+### Display Playlist Info
+
+```typescript
+import { EmbedBuilder } from 'discord.js';
+
+const result = await player.search('spotify playlist url', {
+  requestedBy: interaction.user
+});
+
+const playlist = result.playlist;
+
+if (!playlist) {
+  return interaction.reply('No playlist found!');
+}
+
+const embed = new EmbedBuilder()
+  .setTitle(playlist.title)
+  .setDescription(playlist.description)
+  .setURL(playlist.url)
+  .setThumbnail(playlist.thumbnail)
+  .addFields(
+    {
+      name: 'Type',
+      value: playlist.type === 'album' ? '📀 Album' : '🎵 Playlist',
+      inline: true
+    },
+    {
+      name: 'Source',
+      value: playlist.source,
+      inline: true
+    },
+    {
+      name: 'Tracks',
+      value: playlist.tracks.length.toString(),
+      inline: true
+    },
+    {
+      name: 'Duration',
+      value: playlist.durationFormatted,
+      inline: true
+    },
+    {
+      name: 'Author',
+      value: `[${playlist.author.name}](${playlist.author.url})`,
+      inline: true
+    }
+  );
+
+await interaction.reply({ embeds: [embed] });
+```
+
+### Play Entire Playlist
+
+```typescript
+const result = await player.search(query, {
+  requestedBy: interaction.user
+});
+
+if (result.playlist) {
+  await result.playlist.play(voiceChannel, {
+    nodeOptions: {
+      metadata: interaction
+    }
+  });
+  
+  await interaction.reply(
+    `Queued **${result.playlist.tracks.length}** tracks from **${result.playlist.title}**`
+  );
+}
+```
+
+### Add Playlist Tracks to Queue
+
+```typescript
+const queue = useQueue(interaction.guildId);
+const result = await player.search(playlistUrl);
+
+if (result.playlist) {
+  queue.addTrack(result.playlist.tracks);
+  
+  await interaction.reply(
+    `Added **${result.playlist.tracks.length}** tracks from **${result.playlist.title}** to the queue`
+  );
+}
+```
+
+### Save Playlist to Database
+
+```typescript
+const result = await player.search('spotify:playlist:...', {
+  requestedBy: interaction.user
+});
+
+const playlist = result.playlist;
+
+if (playlist) {
+  // Serialize playlist
+  const serialized = playlist.serialize();
+  
+  // Save to database
+  await db.collection('playlists').insert({
+    userId: interaction.user.id,
+    name: playlist.title,
+    data: serialized,
+    createdAt: new Date()
+  });
+  
+  await interaction.reply(`Saved playlist **${playlist.title}** to your library!`);
+}
+```
+
+### Load Saved Playlist
+
+```typescript
+// Retrieve from database
+const doc = await db.collection('playlists').findOne({
+  userId: interaction.user.id,
+  _id: playlistId
+});
+
+if (!doc) {
+  return interaction.reply('Playlist not found!');
+}
+
+// Deserialize
+const playlist = Playlist.fromSerialized(player, doc.data);
+
+// Play it
+await playlist.play(voiceChannel, {
+  nodeOptions: { metadata: interaction }
+});
+
+await interaction.reply(`Now playing your saved playlist: **${playlist.title}**`);
+```
+
+### Filter Tracks
+
+```typescript
+const playlist = result.playlist;
+
+// Get tracks over 5 minutes
+const longTracks = playlist.tracks.filter(track => track.durationMS > 300000);
+
+// Get tracks by specific artist
+const artistTracks = playlist.tracks.filter(
+  track => track.author.toLowerCase().includes('artist name')
+);
+
+// Play filtered tracks
+queue.addTrack(longTracks);
+```
+
+## TypeScript Types
+
+```typescript
+interface PlaylistInitData {
+  tracks: Track[];
+  title: string;
+  description: string;
+  thumbnail: string;
+  type: 'album' | 'playlist';
+  source: TrackSource;
+  author: {
+    name: string;
+    url: string;
+  };
+  id: string;
+  url: string;
+  rawPlaylist?: any;
+}
+
+interface PlaylistJSON {
+  id: string;
+  url: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  type: 'album' | 'playlist';
+  source: TrackSource;
+  author: {
+    name: string;
+    url: string;
+  };
+  tracks: TrackJSON[];
+}
+
+type SerializedPlaylist = ReturnType<Playlist['serialize']>;
+```
+
+## Related
+
+- [Track](/api/track)
+- [SearchResult](/api/search-result)
+- [Serialization](/advanced/serialization)

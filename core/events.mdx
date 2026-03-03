@@ -1,0 +1,597 @@
+---
+title: Events
+description: Complete event system reference for Discord Player
+icon: bolt
+---
+
+Discord Player provides a comprehensive event system to monitor and respond to playback changes, errors, and queue updates.
+
+## Event System Overview
+
+Events are emitted through the `player.events` emitter:
+
+```typescript
+player.events.on('playerStart', (queue, track) => {
+  console.log(`Now playing: ${track.title}`);
+});
+```
+
+## Player Events
+
+Global player-level events:
+
+### debug
+
+Emitted when debug information is available:
+
+```typescript
+player.on('debug', (message) => {
+  console.log('[Debug]', message);
+});
+```
+
+### error
+
+Emitted for player-level errors:
+
+```typescript
+player.on('error', (error) => {
+  console.error('[Player Error]', error);
+});
+```
+
+### voiceStateUpdate
+
+Emitted when voice states change:
+
+```typescript
+player.on('voiceStateUpdate', (queue, oldState, newState) => {
+  console.log(`Voice state changed in ${queue.guild.name}`);
+});
+```
+
+## Queue Events
+
+Events specific to guild queues, accessed via `player.events`:
+
+### Playback Events
+
+#### playerStart
+
+Emitted when a track starts playing:
+
+```typescript
+player.events.on('playerStart', (queue, track) => {
+  queue.metadata.channel.send(`Now playing: **${track.title}**`);
+});
+```
+
+**Parameters:**
+- `queue: GuildQueue` - The queue
+- `track: Track` - The track that started
+
+#### playerFinish
+
+Emitted when a track finishes playing:
+
+```typescript
+player.events.on('playerFinish', (queue, track) => {
+  console.log(`Finished playing: ${track.title}`);
+});
+```
+
+**Parameters:**
+- `queue: GuildQueue` - The queue
+- `track: Track` - The track that finished
+
+#### playerSkip
+
+Emitted when a track is skipped:
+
+```typescript
+player.events.on('playerSkip', (queue, track, reason, description) => {
+  console.log(`Skipped ${track.title}: ${description}`);
+});
+```
+
+**Parameters:**
+- `queue: GuildQueue` - The queue
+- `track: Track` - The skipped track
+- `reason: TrackSkipReason` - Skip reason enum
+- `description: string` - Human-readable description
+
+**Skip Reasons:**
+```typescript
+enum TrackSkipReason {
+  NoStream = 'ERR_NO_STREAM',
+  Manual = 'MANUAL',
+  SEEK_OVER_THRESHOLD = 'SEEK_OVER_THRESHOLD',
+  Jump = 'JUMPED_TO_ANOTHER_TRACK',
+  SkipTo = 'SKIP_TO_ANOTHER_TRACK',
+  HistoryNext = 'HISTORY_NEXT_TRACK'
+}
+```
+
+#### playerPause
+
+Emitted when playback is paused:
+
+```typescript
+player.events.on('playerPause', (queue) => {
+  console.log('Playback paused');
+});
+```
+
+#### playerResume
+
+Emitted when playback is resumed:
+
+```typescript
+player.events.on('playerResume', (queue) => {
+  console.log('Playback resumed');
+});
+```
+
+#### playerTrigger
+
+Emitted when the audio player is triggered:
+
+```typescript
+player.events.on('playerTrigger', (queue, track, reason) => {
+  console.log(`Player triggered: ${reason}`);
+});
+```
+
+**Parameters:**
+- `queue: GuildQueue` - The queue
+- `track: Track` - The current track
+- `reason: 'filters' | 'normal'` - Trigger reason
+
+#### playerError
+
+Emitted when an error occurs during playback:
+
+```typescript
+player.events.on('playerError', (queue, error, track) => {
+  console.error(`Error playing ${track.title}: ${error.message}`);
+  queue.metadata.channel.send('An error occurred during playback!');
+});
+```
+
+**Parameters:**
+- `queue: GuildQueue` - The queue
+- `error: Error` - The error object
+- `track: Track` - The track that caused the error
+
+### Queue Management Events
+
+#### audioTrackAdd
+
+Emitted when a single track is added:
+
+```typescript
+player.events.on('audioTrackAdd', (queue, track) => {
+  queue.metadata.channel.send(`Added ${track.title} to the queue`);
+});
+```
+
+#### audioTracksAdd
+
+Emitted when multiple tracks are added:
+
+```typescript
+player.events.on('audioTracksAdd', (queue, tracks) => {
+  queue.metadata.channel.send(`Added ${tracks.length} tracks to the queue`);
+});
+```
+
+#### audioTrackRemove
+
+Emitted when a track is removed:
+
+```typescript
+player.events.on('audioTrackRemove', (queue, track) => {
+  console.log(`Removed ${track.title}`);
+});
+```
+
+#### audioTracksRemove
+
+Emitted when multiple tracks are removed:
+
+```typescript
+player.events.on('audioTracksRemove', (queue, tracks) => {
+  console.log(`Removed ${tracks.length} tracks`);
+});
+```
+
+### Connection Events
+
+#### connection
+
+Emitted when a voice connection is established:
+
+```typescript
+player.events.on('connection', (queue) => {
+  console.log(`Connected to ${queue.channel.name}`);
+});
+```
+
+#### connectionDestroyed
+
+Emitted when a voice connection is destroyed:
+
+```typescript
+player.events.on('connectionDestroyed', (queue) => {
+  console.log('Connection destroyed');
+});
+```
+
+#### disconnect
+
+Emitted when the bot is disconnected:
+
+```typescript
+player.events.on('disconnect', (queue) => {
+  console.log('Disconnected from voice channel');
+});
+```
+
+### Queue State Events
+
+#### emptyQueue
+
+Emitted when the queue becomes empty:
+
+```typescript
+player.events.on('emptyQueue', (queue) => {
+  queue.metadata.channel.send('Queue finished!');
+});
+```
+
+#### emptyChannel
+
+Emitted when the voice channel becomes empty:
+
+```typescript
+player.events.on('emptyChannel', (queue) => {
+  console.log('Voice channel is empty');
+});
+```
+
+#### channelPopulate
+
+Emitted when users join an empty voice channel:
+
+```typescript
+player.events.on('channelPopulate', (queue) => {
+  console.log('Channel has users again!');
+});
+```
+
+### Queue Lifecycle Events
+
+#### queueCreate
+
+Emitted when a queue is created:
+
+```typescript
+player.events.on('queueCreate', (queue) => {
+  console.log(`Queue created for ${queue.guild.name}`);
+});
+```
+
+#### queueDelete
+
+Emitted when a queue is deleted:
+
+```typescript
+player.events.on('queueDelete', (queue) => {
+  console.log(`Queue deleted for ${queue.guild.name}`);
+});
+```
+
+### Filter Events
+
+#### volumeChange
+
+Emitted when volume changes:
+
+```typescript
+player.events.on('volumeChange', (queue, oldVolume, newVolume) => {
+  console.log(`Volume: ${oldVolume}% → ${newVolume}%`);
+});
+```
+
+#### equalizerUpdate
+
+Emitted when equalizer is updated:
+
+```typescript
+player.events.on('equalizerUpdate', (queue, oldEQ, newEQ) => {
+  console.log('Equalizer updated');
+});
+```
+
+#### biquadFiltersUpdate
+
+Emitted when biquad filters are updated:
+
+```typescript
+player.events.on('biquadFiltersUpdate', (queue, oldFilters, newFilters) => {
+  console.log('Biquad filters updated');
+});
+```
+
+#### audioFiltersUpdate
+
+Emitted when FFmpeg audio filters are updated:
+
+```typescript
+player.events.on('audioFiltersUpdate', (queue, oldFilters, newFilters) => {
+  console.log(`Filters: ${newFilters.join(', ')}`);
+});
+```
+
+#### dspUpdate
+
+Emitted when DSP filters are updated:
+
+```typescript
+player.events.on('dspUpdate', (queue, oldFilters, newFilters) => {
+  console.log('DSP filters updated');
+});
+```
+
+#### sampleRateUpdate
+
+Emitted when sample rate changes:
+
+```typescript
+player.events.on('sampleRateUpdate', (queue, oldRate, newRate) => {
+  console.log(`Sample rate: ${oldRate}Hz → ${newRate}Hz`);
+});
+```
+
+#### sampleRateFilterUpdate
+
+Emitted when a named sample rate filter is updated:
+
+```typescript
+player.events.on('sampleRateFilterUpdate', (queue, oldFilter, newFilter) => {
+  console.log(`Sample rate filter: ${newFilter}`);
+});
+```
+
+#### reverbUpdate
+
+Emitted when reverb filter is updated:
+
+```typescript
+player.events.on('reverbUpdate', (queue, oldReverb, newReverb) => {
+  console.log('Reverb updated');
+});
+```
+
+#### compressorUpdate
+
+Emitted when compressor filter is updated:
+
+```typescript
+player.events.on('compressorUpdate', (queue, oldCompressor, newCompressor) => {
+  console.log('Compressor updated');
+});
+```
+
+#### playerSeek
+
+Emitted when seeking is performed:
+
+```typescript
+player.events.on('playerSeek', (queue, parameters) => {
+  console.log(`Seeked to ${parameters.seekTarget}ms`);
+});
+```
+
+### Advanced Events
+
+#### willPlayTrack
+
+Emitted before playing a track (can modify stream config):
+
+```typescript
+player.events.on('willPlayTrack', (queue, track, config, done) => {
+  // Modify config if needed
+  console.log(`About to play: ${track.title}`);
+  done(); // Must call done() to continue
+});
+```
+
+**Parameters:**
+- `queue: GuildQueue` - The queue
+- `track: Track` - Track about to play
+- `config: StreamConfig` - Stream configuration
+- `done: () => void` - Callback to continue playback
+
+<Warning>
+You must call `done()` to allow playback to continue when using this event.
+</Warning>
+
+#### willAutoPlay
+
+Emitted when autoplay is about to add a track:
+
+```typescript
+player.events.on('willAutoPlay', (queue, tracks, done) => {
+  // Select which track to play
+  const track = tracks[0];
+  done(track); // or done(null) to cancel
+});
+```
+
+**Parameters:**
+- `queue: GuildQueue` - The queue
+- `tracks: Track[]` - Suggested tracks
+- `done: (track: Track | null) => void` - Callback with selected track
+
+#### debug
+
+Emitted for queue-specific debug information:
+
+```typescript
+player.events.on('debug', (queue, message) => {
+  console.log(`[${queue.guild.name}] ${message}`);
+});
+```
+
+#### error
+
+Emitted for queue-specific errors:
+
+```typescript
+player.events.on('error', (queue, error) => {
+  console.error(`[${queue.guild.name}] Error: ${error.message}`);
+});
+```
+
+#### voiceStateUpdate
+
+Emitted for voice state updates in the queue:
+
+```typescript
+player.events.on('voiceStateUpdate', (queue, oldState, newState) => {
+  // Custom voice state handling
+});
+```
+
+<Note>
+Consuming this event may disable the default voice state handler unless `Player.lockVoiceStateHandler()` is called.
+</Note>
+
+## Event Constants
+
+Use the `GuildQueueEvent` enum for type-safe event names:
+
+```typescript
+import { GuildQueueEvent } from 'discord-player';
+
+player.events.on(GuildQueueEvent.PlayerStart, (queue, track) => {
+  console.log(`Playing: ${track.title}`);
+});
+
+player.events.on(GuildQueueEvent.AudioTrackAdd, (queue, track) => {
+  console.log(`Added: ${track.title}`);
+});
+```
+
+## Example: Complete Event Handler
+
+```typescript
+import { Player, GuildQueueEvent } from 'discord-player';
+
+const player = new Player(client);
+
+// Track all playback events
+player.events.on(GuildQueueEvent.PlayerStart, (queue, track) => {
+  queue.metadata.channel.send(
+    `Now playing: **${track.title}** [${track.duration}]`
+  );
+});
+
+player.events.on(GuildQueueEvent.AudioTrackAdd, (queue, track) => {
+  queue.metadata.channel.send(
+    `Added **${track.title}** to the queue`
+  );
+});
+
+player.events.on(GuildQueueEvent.EmptyQueue, (queue) => {
+  queue.metadata.channel.send('Queue finished!');
+});
+
+player.events.on(GuildQueueEvent.EmptyChannel, (queue) => {
+  queue.metadata.channel.send('Everyone left, pausing playback...');
+});
+
+// Error handling
+player.events.on(GuildQueueEvent.Error, (queue, error) => {
+  console.error(`[${queue.guild.name}] Queue error:`, error);
+  queue.metadata.channel.send('An error occurred!');
+});
+
+player.events.on(GuildQueueEvent.PlayerError, (queue, error, track) => {
+  console.error(`[${queue.guild.name}] Player error:`, error);
+  queue.metadata.channel.send(`Error playing ${track.title}`);
+});
+
+// Filter changes
+player.events.on(GuildQueueEvent.AudioFiltersUpdate, (queue, oldFilters, newFilters) => {
+  if (newFilters.length > 0) {
+    queue.metadata.channel.send(`Applied filters: ${newFilters.join(', ')}`);
+  } else {
+    queue.metadata.channel.send('Filters cleared');
+  }
+});
+
+// Connection events
+player.events.on(GuildQueueEvent.Connection, (queue) => {
+  console.log(`Connected to ${queue.channel.name}`);
+});
+
+player.events.on(GuildQueueEvent.Disconnect, (queue) => {
+  console.log(`Disconnected from ${queue.guild.name}`);
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Handle Errors">
+    Always listen to error events to prevent unhandled errors:
+    
+    ```typescript
+    player.events.on('error', (queue, error) => {
+      console.error('Queue error:', error);
+    });
+    
+    player.events.on('playerError', (queue, error, track) => {
+      console.error('Player error:', error);
+      queue.node.skip(); // Skip problematic track
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Use Metadata for Context">
+    Store channel references in queue metadata for easy access in events:
+    
+    ```typescript
+    const queue = player.nodes.create(guild, {
+      metadata: { channel: interaction.channel }
+    });
+    
+    player.events.on('playerStart', (queue, track) => {
+      queue.metadata.channel.send(`Now playing: ${track.title}`);
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Event Emitter Patterns">
+    Use type-safe event constants and proper typing:
+    
+    ```typescript
+    import { GuildQueueEvent, GuildQueue, Track } from 'discord-player';
+    
+    player.events.on(
+      GuildQueueEvent.PlayerStart,
+      (queue: GuildQueue, track: Track) => {
+        // Full type safety
+      }
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## See Also
+
+- [Player](/core/player) - Learn about the Player class
+- [GuildQueue](/core/queue) - Queue management
+- [Hooks](/core/hooks) - React-like hooks for accessing queue data

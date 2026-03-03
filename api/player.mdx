@@ -1,0 +1,365 @@
+---
+title: Player
+description: The main Player class that manages queues, extractors, and voice connections
+icon: play
+---
+
+The `Player` class is the core of Discord Player. It manages guild queues, extractors, voice connections, and provides the main API for searching and playing audio.
+
+## Constructor
+
+Create a new Player instance:
+
+```typescript
+import { Player } from 'discord-player';
+import { Client } from 'discord.js';
+
+const client = new Client({
+  intents: ['GuildVoiceStates', 'Guilds']
+});
+
+const player = new Player(client, options);
+```
+
+### Parameters
+
+<ParamField path="client" type="Client" required>
+  The Discord.js client instance
+</ParamField>
+
+<ParamField path="options" type="PlayerInitOptions">
+  Player initialization options
+  
+  <Expandable title="PlayerInitOptions properties">
+    <ParamField path="connectionTimeout" type="number" default="30000">
+      Voice connection timeout in milliseconds
+    </ParamField>
+    
+    <ParamField path="lagMonitor" type="number" default="30000">
+      Time in ms to re-monitor event loop lag
+    </ParamField>
+    
+    <ParamField path="lockVoiceStateHandler" type="boolean" default="false">
+      Prevent voice state handler from being overridden
+    </ParamField>
+    
+    <ParamField path="blockExtractors" type="string[]">
+      List of extractors to disable querying metadata from
+    </ParamField>
+    
+    <ParamField path="blockStreamFrom" type="string[]">
+      List of extractors to disable streaming from
+    </ParamField>
+    
+    <ParamField path="queryCache" type="QueryCacheProvider | null">
+      Query cache provider
+    </ParamField>
+    
+    <ParamField path="skipFFmpeg" type="boolean" default="false">
+      Skip ffmpeg process when possible
+    </ParamField>
+    
+    <ParamField path="probeTimeout" type="number" default="5000">
+      The probe timeout in milliseconds
+    </ParamField>
+    
+    <ParamField path="ffmpegPath" type="string">
+      Configure custom ffmpeg path
+    </ParamField>
+    
+    <ParamField path="overrideFallbackContext" type="boolean" default="true">
+      Whether to override the fallback context
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Properties
+
+<ResponseField name="id" type="string">
+  The unique identifier of this player instance (Snowflake)
+</ResponseField>
+
+<ResponseField name="client" type="Client">
+  The Discord.js client instance
+</ResponseField>
+
+<ResponseField name="options" type="PlayerInitOptions">
+  The player initialization options
+</ResponseField>
+
+<ResponseField name="nodes" type="GuildNodeManager">
+  The guild queue manager
+</ResponseField>
+
+<ResponseField name="voiceUtils" type="VoiceUtils">
+  Voice API utilities
+</ResponseField>
+
+<ResponseField name="extractors" type="ExtractorExecutionContext">
+  The extractors manager
+</ResponseField>
+
+<ResponseField name="events" type="PlayerEventsEmitter<GuildQueueEvents>">
+  The player events channel for queue events
+</ResponseField>
+
+<ResponseField name="lyrics" type="LrcLib">
+  LrcLib client for fetching synced lyrics
+</ResponseField>
+
+<ResponseField name="context" type="Context<HooksCtx>">
+  The hooks context for using player hooks
+</ResponseField>
+
+<ResponseField name="streamInterceptor" type="PlayerStreamInterceptor | null">
+  The stream interceptor instance (if configured)
+</ResponseField>
+
+<ResponseField name="version" type="string" static>
+  The version of discord-player (static property)
+</ResponseField>
+
+## Methods
+
+### play()
+
+Play a track in a voice channel:
+
+```typescript
+const { track, queue } = await player.play(channel, 'https://youtube.com/watch?v=...', {
+  nodeOptions: {
+    metadata: interaction
+  }
+});
+```
+
+<ParamField path="channel" type="GuildVoiceChannelResolvable" required>
+  The voice channel to play in
+</ParamField>
+
+<ParamField path="query" type="TrackLike" required>
+  The query to search for (can be string, Track, Playlist, SearchResult, Track[], or AudioResource)
+</ParamField>
+
+<ParamField path="options" type="PlayerNodeInitializerOptions">
+  Initialization options
+  
+  <Expandable title="PlayerNodeInitializerOptions properties">
+    <ParamField path="nodeOptions" type="GuildNodeCreateOptions">
+      Options for creating the guild queue
+    </ParamField>
+    
+    <ParamField path="connectionOptions" type="VoiceConnectConfig">
+      Voice connection configuration
+    </ParamField>
+    
+    <ParamField path="audioPlayerOptions" type="ResourcePlayOptions">
+      Audio player options
+    </ParamField>
+    
+    <ParamField path="requestedBy" type="UserResolvable">
+      The user who requested this track
+    </ParamField>
+    
+    <ParamField path="searchEngine" type="SearchQueryType">
+      The search engine to use
+    </ParamField>
+    
+    <ParamField path="signal" type="AbortSignal">
+      Abort signal for cancellation
+    </ParamField>
+    
+    <ParamField path="afterSearch" type="(result: SearchResult) => Promise<SearchResult>">
+      Callback to modify search result before playing
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="returns" type="Promise<PlayerNodeInitializationResult>">
+  Promise resolving with track, queue, extractor, and searchResult
+</ResponseField>
+
+### search()
+
+Search for tracks:
+
+```typescript
+const result = await player.search('despacito', {
+  requestedBy: interaction.user,
+  searchEngine: QueryType.YOUTUBE
+});
+```
+
+<ParamField path="query" type="string" required>
+  The search query
+</ParamField>
+
+<ParamField path="options" type="SearchOptions">
+  Search options
+</ParamField>
+
+<ResponseField name="returns" type="Promise<SearchResult>">
+  Promise resolving with search results
+</ResponseField>
+
+### generateStatistics()
+
+Generate player statistics:
+
+```typescript
+const stats = player.generateStatistics();
+```
+
+<ResponseField name="returns" type="PlayerStatistics">
+  Object containing player statistics including queues, tracks, uptime, memory usage, and versions
+</ResponseField>
+
+### scanDeps()
+
+Scan and validate dependencies:
+
+```typescript
+const report = await player.scanDeps();
+console.log(report);
+```
+
+<ResponseField name="returns" type="Promise<string>">
+  Promise resolving with formatted dependency report
+</ResponseField>
+
+### setVoiceStateHandler()
+
+Set custom voice state handler:
+
+```typescript
+player.setVoiceStateHandler((player, queue, oldState, newState) => {
+  // Custom voice state logic
+});
+```
+
+<ParamField path="handler" type="VoiceStateHandler" required>
+  The voice state handler function
+</ParamField>
+
+### voiceStateHandler()
+
+Get the current voice state handler:
+
+```typescript
+const handler = player.voiceStateHandler();
+```
+
+<ResponseField name="returns" type="VoiceStateHandler">
+  The current voice state handler function
+</ResponseField>
+
+### createContext()
+
+Create a custom hooks context:
+
+```typescript
+const customContext = player.createContext();
+
+await customContext.provide({ guild: someGuild }, async () => {
+  // Use hooks here
+  const queue = useQueue();
+});
+```
+
+<ResponseField name="returns" type="Context<HooksCtx>">
+  A new context instance
+</ResponseField>
+
+## Events
+
+The Player class emits the following events:
+
+### debug
+
+Emitted when debug information is available:
+
+```typescript
+player.on('debug', (message) => {
+  console.log(`[DEBUG] ${message}`);
+});
+```
+
+### error
+
+Emitted when an error occurs:
+
+```typescript
+player.on('error', (error) => {
+  console.error('Player error:', error);
+});
+```
+
+### voiceStateUpdate
+
+Emitted when voice state updates:
+
+```typescript
+player.on('voiceStateUpdate', (queue, oldState, newState) => {
+  console.log('Voice state changed');
+});
+```
+
+## Example
+
+Complete example with error handling:
+
+```typescript
+import { Player } from 'discord-player';
+import { DefaultExtractors } from '@discord-player/extractor';
+import { Client, GatewayIntentBits } from 'discord.js';
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates
+  ]
+});
+
+const player = new Player(client, {
+  skipFFmpeg: false,
+  connectionTimeout: 30000
+});
+
+// Load extractors
+await player.extractors.loadMulti(DefaultExtractors);
+
+// Player events
+player.on('debug', (message) => console.log('[Player]', message));
+player.on('error', (error) => console.error('[Player Error]', error));
+
+// Queue events
+player.events.on('playerStart', (queue, track) => {
+  queue.metadata.channel.send(`Now playing: **${track.cleanTitle}**`);
+});
+
+player.events.on('error', (queue, error) => {
+  console.error('Queue error:', error);
+  queue.metadata.channel.send('An error occurred!');
+});
+
+// Play command
+await player.context.provide({ guild: interaction.guild }, async () => {
+  try {
+    const { track } = await player.play(channel, query, {
+      nodeOptions: {
+        metadata: interaction
+      }
+    });
+    
+    await interaction.followUp(`Queued **${track.cleanTitle}**`);
+  } catch (error) {
+    await interaction.followUp('Failed to play track');
+  }
+});
+```
+
+## Related
+
+- [GuildQueue](/api/guild-queue)
+- [ExtractorExecutionContext](/api/extractor-execution-context)
+- [Hooks](/core/hooks)

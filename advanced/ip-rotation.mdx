@@ -1,0 +1,397 @@
+---
+title: IP Rotation
+description: Configure IP rotation and custom HTTP request options for extractors
+icon: rotate
+---
+
+## Overview
+
+Discord Player supports custom HTTP request options for searches and streaming, allowing you to implement IP rotation, use proxies, or customize request headers. This is particularly useful for bypassing rate limits or implementing advanced networking configurations.
+
+## Request Options
+
+The `requestOptions` parameter accepts Node.js `http.RequestOptions` and is available in search operations:
+
+```typescript
+import type { RequestOptions } from 'http';
+
+const result = await player.search('query', {
+  requestOptions: {
+    // Custom request configuration
+  }
+});
+```
+
+## IP Rotation
+
+Use the `localAddress` option to rotate between multiple IP addresses:
+
+```typescript
+const ipPool = [
+  '192.168.1.100',
+  '192.168.1.101',
+  '192.168.1.102',
+  '192.168.1.103'
+];
+
+let currentIpIndex = 0;
+
+function getNextIP() {
+  const ip = ipPool[currentIpIndex];
+  currentIpIndex = (currentIpIndex + 1) % ipPool.length;
+  return ip;
+}
+
+// Search with rotating IP
+const result = await player.search('Rick Astley - Never Gonna Give You Up', {
+  requestOptions: {
+    localAddress: getNextIP()
+  }
+});
+```
+
+## Proxy Configuration
+
+Configure HTTP/HTTPS proxies using an agent:
+
+```typescript
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { HttpProxyAgent } from 'http-proxy-agent';
+
+const proxyUrl = 'http://proxy.example.com:8080';
+const agent = new HttpsProxyAgent(proxyUrl);
+
+const result = await player.search('query', {
+  requestOptions: {
+    agent: agent
+  }
+});
+```
+
+## SOCKS Proxy
+
+Use SOCKS proxies for additional privacy:
+
+```typescript
+import { SocksProxyAgent } from 'socks-proxy-agent';
+
+const socksProxy = 'socks5://127.0.0.1:1080';
+const agent = new SocksProxyAgent(socksProxy);
+
+const result = await player.search('query', {
+  requestOptions: {
+    agent: agent
+  }
+});
+```
+
+## Custom Headers
+
+Add custom headers to requests:
+
+```typescript
+const result = await player.search('query', {
+  requestOptions: {
+    headers: {
+      'User-Agent': 'MyCustomBot/1.0',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'X-Custom-Header': 'value'
+    }
+  }
+});
+```
+
+## Advanced IP Rotation System
+
+Implement a sophisticated IP rotation system with health checks:
+
+```typescript
+class IPRotator {
+  private ips: string[];
+  private currentIndex = 0;
+  private failedIPs = new Set<string>();
+  
+  constructor(ips: string[]) {
+    this.ips = ips;
+  }
+  
+  getNextIP(): string {
+    let attempts = 0;
+    
+    while (attempts < this.ips.length) {
+      const ip = this.ips[this.currentIndex];
+      this.currentIndex = (this.currentIndex + 1) % this.ips.length;
+      
+      // Skip failed IPs
+      if (!this.failedIPs.has(ip)) {
+        return ip;
+      }
+      
+      attempts++;
+    }
+    
+    // All IPs failed, reset and try again
+    this.failedIPs.clear();
+    return this.ips[0];
+  }
+  
+  markFailed(ip: string): void {
+    this.failedIPs.add(ip);
+    console.log(`IP ${ip} marked as failed`);
+  }
+  
+  reset(): void {
+    this.failedIPs.clear();
+  }
+}
+
+// Usage
+const rotator = new IPRotator([
+  '192.168.1.100',
+  '192.168.1.101',
+  '192.168.1.102'
+]);
+
+async function searchWithRotation(query: string) {
+  const ip = rotator.getNextIP();
+  
+  try {
+    const result = await player.search(query, {
+      requestOptions: {
+        localAddress: ip
+      }
+    });
+    
+    return result;
+  } catch (error) {
+    rotator.markFailed(ip);
+    throw error;
+  }
+}
+```
+
+## Proxy Pool
+
+Rotate between multiple proxies:
+
+```typescript
+import { HttpsProxyAgent } from 'https-proxy-agent';
+
+class ProxyPool {
+  private proxies: string[];
+  private agents: Map<string, HttpsProxyAgent>;
+  private currentIndex = 0;
+  
+  constructor(proxies: string[]) {
+    this.proxies = proxies;
+    this.agents = new Map();
+    
+    // Pre-create agents
+    proxies.forEach(proxy => {
+      this.agents.set(proxy, new HttpsProxyAgent(proxy));
+    });
+  }
+  
+  getNextAgent(): HttpsProxyAgent {
+    const proxy = this.proxies[this.currentIndex];
+    this.currentIndex = (this.currentIndex + 1) % this.proxies.length;
+    return this.agents.get(proxy)!;
+  }
+}
+
+// Usage
+const proxyPool = new ProxyPool([
+  'http://proxy1.example.com:8080',
+  'http://proxy2.example.com:8080',
+  'http://proxy3.example.com:8080'
+]);
+
+const result = await player.search('query', {
+  requestOptions: {
+    agent: proxyPool.getNextAgent()
+  }
+});
+```
+
+## Request Options in Streaming
+
+Request options are automatically passed to the streaming layer:
+
+```typescript
+// Search with request options
+const result = await player.search('query', {
+  requestOptions: {
+    localAddress: '192.168.1.100'
+  }
+});
+
+// The request options are stored in track metadata
+const track = result.tracks[0];
+// track.raw.requestOptions contains the options
+
+// When the track is played, the same options are used for streaming
+queue.addTrack(track);
+queue.node.play(); // Uses the stored requestOptions
+```
+
+## FFmpeg Integration
+
+Request options are passed to FFmpeg when streaming:
+
+```typescript
+// FFmpeg will use the User-Agent header
+const result = await player.search('https://example.com/audio.mp3', {
+  requestOptions: {
+    headers: {
+      'User-Agent': 'CustomBot/1.0',
+      'Authorization': 'Bearer token'
+    }
+  }
+});
+```
+
+FFmpeg receives these headers via the `-user_agent` and `-headers` flags.
+
+## Rate Limit Mitigation
+
+Combine IP rotation with retry logic:
+
+```typescript
+class RateLimitHandler {
+  private rotator: IPRotator;
+  private maxRetries = 3;
+  private retryDelay = 1000;
+  
+  constructor(ips: string[]) {
+    this.rotator = new IPRotator(ips);
+  }
+  
+  async searchWithRetry(player: Player, query: string) {
+    for (let i = 0; i < this.maxRetries; i++) {
+      const ip = this.rotator.getNextIP();
+      
+      try {
+        return await player.search(query, {
+          requestOptions: {
+            localAddress: ip
+          }
+        });
+      } catch (error) {
+        if (error.message.includes('rate limit')) {
+          console.log(`Rate limited on IP ${ip}, retrying...`);
+          this.rotator.markFailed(ip);
+          await this.sleep(this.retryDelay * (i + 1));
+          continue;
+        }
+        throw error;
+      }
+    }
+    
+    throw new Error('Max retries exceeded');
+  }
+  
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+// Usage
+const handler = new RateLimitHandler([
+  '192.168.1.100',
+  '192.168.1.101',
+  '192.168.1.102'
+]);
+
+const result = await handler.searchWithRetry(player, 'Rick Astley');
+```
+
+## Environment-Based Configuration
+
+Configure proxies/IPs from environment variables:
+
+```typescript
+const config = {
+  ips: process.env.IP_POOL?.split(',') || [],
+  proxy: process.env.PROXY_URL,
+  userAgent: process.env.USER_AGENT || 'DiscordPlayerBot/1.0'
+};
+
+function getRequestOptions(): RequestOptions {
+  const options: RequestOptions = {
+    headers: {
+      'User-Agent': config.userAgent
+    }
+  };
+  
+  // Add proxy if configured
+  if (config.proxy) {
+    options.agent = new HttpsProxyAgent(config.proxy);
+  }
+  
+  // Add IP rotation if configured
+  if (config.ips.length > 0) {
+    options.localAddress = config.ips[
+      Math.floor(Math.random() * config.ips.length)
+    ];
+  }
+  
+  return options;
+}
+
+// Use in searches
+const result = await player.search('query', {
+  requestOptions: getRequestOptions()
+});
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Rate Limit Bypass" icon="gauge-high">
+    Distribute requests across multiple IPs to avoid rate limits
+  </Card>
+  <Card title="Geographic Restrictions" icon="globe">
+    Use proxies in different regions to access geo-restricted content
+  </Card>
+  <Card title="Load Distribution" icon="scale-balanced">
+    Balance network load across multiple network interfaces
+  </Card>
+  <Card title="Privacy" icon="shield">
+    Route requests through proxies for enhanced privacy
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Monitor IP health">
+    Implement health checks to detect and exclude failed IPs from rotation.
+  </Accordion>
+  
+  <Accordion title="Use connection pooling">
+    Reuse agent instances instead of creating new ones for each request.
+  </Accordion>
+  
+  <Accordion title="Implement exponential backoff">
+    When retrying failed requests, use exponential backoff to avoid overwhelming services.
+  </Accordion>
+  
+  <Accordion title="Respect rate limits">
+    IP rotation is not a license to abuse APIs. Always respect service rate limits.
+  </Accordion>
+  
+  <Accordion title="Secure proxy credentials">
+    Store proxy credentials in environment variables, not in code.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Search API" icon="magnifying-glass" href="/api/search">
+    Learn about search options
+  </Card>
+  <Card title="Extractors" icon="puzzle-piece" href="/guide/extractors">
+    Understanding extractor system
+  </Card>
+</CardGroup>

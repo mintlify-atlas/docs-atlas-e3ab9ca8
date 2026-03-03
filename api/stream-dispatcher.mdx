@@ -1,0 +1,519 @@
+---
+title: StreamDispatcher
+description: API reference for the StreamDispatcher class
+icon: circle-play
+---
+
+## StreamDispatcher
+
+Manages audio playback and streaming for a voice connection. Handles the audio player, voice connection lifecycle, and DSP filters.
+
+### Constructor
+
+```typescript
+new StreamDispatcher(
+  connection: VoiceConnection,
+  channel: VoiceChannel | StageChannel,
+  queue: GuildQueue,
+  connectionTimeout?: number,
+  audioPlayer?: AudioPlayer
+)
+```
+
+<ParamField path="connection" type="VoiceConnection" required>
+  The Discord voice connection
+</ParamField>
+
+<ParamField path="channel" type="VoiceChannel | StageChannel" required>
+  The voice or stage channel being connected to
+</ParamField>
+
+<ParamField path="queue" type="GuildQueue" required>
+  The guild queue instance
+</ParamField>
+
+<ParamField path="connectionTimeout" type="number" default={20000}>
+  Timeout in milliseconds for connection state changes
+</ParamField>
+
+<ParamField path="audioPlayer" type="AudioPlayer">
+  Optional audio player instance. If not provided, a new one will be created
+</ParamField>
+
+### Properties
+
+<ResponseField name="voiceConnection" type="VoiceConnection">
+  The underlying Discord voice connection
+</ResponseField>
+
+<ResponseField name="audioPlayer" type="AudioPlayer">
+  The Discord.js audio player instance
+</ResponseField>
+
+<ResponseField name="channel" type="VoiceChannel | StageChannel">
+  The voice channel the bot is connected to
+</ResponseField>
+
+<ResponseField name="audioResource" type="AudioResource<Track> | null">
+  Currently playing audio resource
+</ResponseField>
+
+<ResponseField name="dsp" type="FiltersChain">
+  Digital Signal Processing filters chain
+</ResponseField>
+
+<ResponseField name="queue" type="GuildQueue">
+  Reference to the parent guild queue
+</ResponseField>
+
+<ResponseField name="connectionTimeout" type="number">
+  Timeout duration for voice connection operations
+</ResponseField>
+
+<ResponseField name="paused" type="boolean">
+  Whether the player is manually paused. Can be set to pause/resume
+</ResponseField>
+
+<ResponseField name="status" type="AudioPlayerStatus">
+  Current status of the audio player
+</ResponseField>
+
+<ResponseField name="volume" type="number">
+  Current playback volume (0-100)
+</ResponseField>
+
+<ResponseField name="streamTime" type="number">
+  Current playback time in milliseconds
+</ResponseField>
+
+<ResponseField name="resampler" type="Resampler | undefined">
+  Audio resampler from the DSP chain
+</ResponseField>
+
+<ResponseField name="filters" type="Filters | undefined">
+  DSP filters from the filter chain
+</ResponseField>
+
+<ResponseField name="biquad" type="Biquad | null">
+  Biquad filter from the DSP chain
+</ResponseField>
+
+<ResponseField name="equalizer" type="Equalizer | null">
+  Equalizer from the DSP chain
+</ResponseField>
+
+<ResponseField name="compressor" type="Compressor | null">
+  Audio compressor from the DSP chain
+</ResponseField>
+
+<ResponseField name="reverb" type="Reverb | null">
+  Reverb effect from the DSP chain
+</ResponseField>
+
+<ResponseField name="seeker" type="Seeker | null">
+  PCM seeker for track seeking
+</ResponseField>
+
+### Methods
+
+#### createStream
+
+Creates an audio resource from a readable stream with DSP filters.
+
+```typescript
+createStream(src: Readable, ops: CreateStreamOps): Promise<AudioResource<Track>>
+```
+
+<ParamField path="src" type="Readable" required>
+  The source audio stream
+</ParamField>
+
+<ParamField path="ops" type="CreateStreamOps" required>
+  Stream creation options including:
+  - `type`: Stream type (e.g., `StreamType.Arbitrary`, `StreamType.OggOpus`)
+  - `data`: Track metadata
+  - `disableVolume`: Disable volume transformer
+  - `disableEqualizer`: Disable equalizer
+  - `disableBiquad`: Disable biquad filter
+  - `disableCompressor`: Disable compressor
+  - `disableResampler`: Disable resampler
+  - `disableReverb`: Disable reverb
+  - `disableSeeker`: Disable seeker
+  - `eq`: Equalizer band configuration
+  - `biquadFilter`: Biquad filter type
+  - `disableFilters`: Disable all DSP filters
+  - `defaultFilters`: Default PCM filters to apply
+  - `volume`: Initial volume (0-100)
+  - `sampleRate`: Target sample rate
+  - `sampleRateFilters`: Resampler filter preset
+  - `compressor`: Compressor parameters
+  - `reverb`: Reverb parameters
+  - `seeker`: Seeker parameters
+</ParamField>
+
+<ResponseField name="return" type="Promise<AudioResource<Track>>">
+  The created audio resource ready for playback
+</ResponseField>
+
+**Example:**
+```typescript
+const stream = getAudioStream(); // Your audio stream
+const resource = await dispatcher.createStream(stream, {
+  type: StreamType.Arbitrary,
+  data: track,
+  volume: 80,
+  eq: EqualizerConfigurationPreset.Rock,
+  compressor: {
+    threshold: -20,
+    ratio: 3,
+    attack: 0.003,
+    release: 0.25,
+    makeupGain: 1,
+    kneeWidth: 4
+  }
+});
+```
+
+#### playStream
+
+Plays an audio resource through the voice connection.
+
+```typescript
+playStream(resource?: AudioResource<Track>): Promise<StreamDispatcher>
+```
+
+<ParamField path="resource" type="AudioResource<Track>">
+  The audio resource to play. Defaults to the current audio resource
+</ParamField>
+
+<ResponseField name="return" type="Promise<StreamDispatcher>">
+  Returns this dispatcher instance for chaining
+</ResponseField>
+
+**Example:**
+```typescript
+const resource = await dispatcher.createStream(stream, options);
+await dispatcher.playStream(resource);
+```
+
+#### pause
+
+Pauses the current playback.
+
+```typescript
+pause(interpolateSilence?: boolean): boolean
+```
+
+<ParamField path="interpolateSilence" type="boolean" default={false}>
+  If `true`, plays 5 packets of silence after pausing to prevent audio glitches
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if successfully paused
+</ResponseField>
+
+**Example:**
+```typescript
+// Pause without silence interpolation
+dispatcher.pause();
+
+// Pause with silence interpolation
+dispatcher.pause(true);
+```
+
+#### resume
+
+Resumes paused playback.
+
+```typescript
+resume(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if successfully resumed
+</ResponseField>
+
+**Example:**
+```typescript
+dispatcher.resume();
+```
+
+#### setVolume
+
+Sets the playback volume.
+
+```typescript
+setVolume(value: number): boolean
+```
+
+<ParamField path="value" type="number" required>
+  Volume level from 0 to 100
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if volume was set successfully
+</ResponseField>
+
+**Example:**
+```typescript
+// Set volume to 75%
+dispatcher.setVolume(75);
+
+// Mute
+dispatcher.setVolume(0);
+
+// Max volume
+dispatcher.setVolume(100);
+```
+
+#### disconnect
+
+Disconnects from the voice channel.
+
+```typescript
+disconnect(): void
+```
+
+**Example:**
+```typescript
+dispatcher.disconnect();
+```
+
+#### destroy
+
+Destroys the dispatcher and cleans up all resources.
+
+```typescript
+destroy(): void
+```
+
+**Example:**
+```typescript
+dispatcher.destroy();
+```
+
+#### end
+
+Stops the current playback.
+
+```typescript
+end(): void
+```
+
+**Example:**
+```typescript
+dispatcher.end();
+```
+
+#### isPaused
+
+Checks if the player is paused (manually or automatically).
+
+```typescript
+isPaused(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if paused
+</ResponseField>
+
+#### isBuffering
+
+Checks if the player is currently buffering.
+
+```typescript
+isBuffering(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if buffering
+</ResponseField>
+
+#### isPlaying
+
+Checks if the player is currently playing.
+
+```typescript
+isPlaying(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if playing
+</ResponseField>
+
+#### isIdle
+
+Checks if the player is idle.
+
+```typescript
+isIdle(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if idle
+</ResponseField>
+
+#### isDestroyed
+
+Checks if the voice connection has been destroyed.
+
+```typescript
+isDestroyed(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if destroyed
+</ResponseField>
+
+#### isDisconnected
+
+Checks if the voice connection is disconnected.
+
+```typescript
+isDisconnected(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if disconnected
+</ResponseField>
+
+#### isReady
+
+Checks if the voice connection is ready.
+
+```typescript
+isReady(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if ready
+</ResponseField>
+
+#### isSignalling
+
+Checks if the voice connection is in signalling state.
+
+```typescript
+isSignalling(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if signalling
+</ResponseField>
+
+#### isConnecting
+
+Checks if the voice connection is connecting.
+
+```typescript
+isConnecting(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if connecting
+</ResponseField>
+
+### Events
+
+The StreamDispatcher emits the following events:
+
+<ResponseField name="error" type="(error: AudioPlayerError) => void">
+  Emitted when an error occurs in the audio player or voice connection
+</ResponseField>
+
+<ResponseField name="debug" type="(message: string) => void">
+  Emitted for debug messages
+</ResponseField>
+
+<ResponseField name="start" type="(resource: AudioResource<Track>) => void">
+  Emitted when playback starts
+</ResponseField>
+
+<ResponseField name="finish" type="(resource: AudioResource<Track>) => void">
+  Emitted when playback finishes
+</ResponseField>
+
+<ResponseField name="dsp" type="(filters: PCMFilters[]) => void">
+  Emitted when DSP filters are updated
+</ResponseField>
+
+<ResponseField name="eqBands" type="(filters: EqualizerBand[]) => void">
+  Emitted when equalizer bands are updated
+</ResponseField>
+
+<ResponseField name="sampleRate" type="(filters: ResampleParameters) => void">
+  Emitted when sample rate parameters are updated
+</ResponseField>
+
+<ResponseField name="biquad" type="(filters: BiquadFilters) => void">
+  Emitted when biquad filters are updated
+</ResponseField>
+
+<ResponseField name="compressor" type="(filters: CompressorParameters) => void">
+  Emitted when compressor parameters are updated
+</ResponseField>
+
+<ResponseField name="reverb" type="(filters: ReverbParameters) => void">
+  Emitted when reverb parameters are updated
+</ResponseField>
+
+<ResponseField name="seeker" type="(filters: SeekerParameters) => void">
+  Emitted when seeker parameters are updated
+</ResponseField>
+
+<ResponseField name="volume" type="(volume: number) => void">
+  Emitted when volume is changed
+</ResponseField>
+
+<ResponseField name="destroyed" type="() => void">
+  Emitted when the dispatcher is destroyed
+</ResponseField>
+
+## Usage Example
+
+```typescript
+import { StreamDispatcher } from 'discord-player';
+
+// Listen to events
+dispatcher.on('start', (resource) => {
+  console.log('Started playing:', resource.metadata.title);
+});
+
+dispatcher.on('finish', (resource) => {
+  console.log('Finished playing:', resource.metadata.title);
+});
+
+dispatcher.on('error', (error) => {
+  console.error('Playback error:', error);
+});
+
+dispatcher.on('volume', (volume) => {
+  console.log('Volume changed to:', volume);
+});
+
+// Control playback
+if (dispatcher.isPlaying()) {
+  dispatcher.pause();
+}
+
+if (dispatcher.isPaused()) {
+  dispatcher.resume();
+}
+
+// Adjust volume
+dispatcher.setVolume(50);
+
+// Check playback time
+console.log('Current position:', dispatcher.streamTime, 'ms');
+
+// Check connection status
+if (dispatcher.isReady()) {
+  console.log('Voice connection is ready');
+}
+```
+
+## Related
+
+- [GuildQueueAudioFilters](/api/guild-queue-audio-filters) - Audio filters management
+- [GuildQueue](/api/guild-queue) - Guild queue class
+- [Track](/api/track) - Track class

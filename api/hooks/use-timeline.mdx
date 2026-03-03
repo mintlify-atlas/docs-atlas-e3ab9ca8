@@ -1,0 +1,341 @@
+---
+title: useTimeline
+description: React-style hook to control playback timeline and track state
+icon: timeline
+---
+
+## Overview
+
+The `useTimeline` hook provides a convenient interface to control playback, access track information, and manage the audio timeline. It returns an object with reactive getters and control methods.
+
+## Usage
+
+```typescript
+import { useTimeline } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('pause')
+    .setDescription('Pause playback'),
+  async execute({ interaction }) {
+    const timeline = useTimeline();
+    
+    if (!timeline) {
+      return interaction.reply('No music is playing!');
+    }
+    
+    timeline.pause();
+    return interaction.reply('⏸️ Paused playback');
+  }
+});
+```
+
+## Signature
+
+```typescript
+function useTimeline(): GuildQueueTimeline | null
+function useTimeline(options: Partial<TimelineDispatcherOptions>): GuildQueueTimeline | null
+```
+
+## Parameters
+
+<ParamField path="options" type="Partial<TimelineDispatcherOptions>" optional>
+  Options for timeline dispatcher
+  
+  <Expandable title="properties">
+    <ParamField path="node" type="NodeResolvable" optional>
+      Guild queue node resolvable. Defaults to the guild from command context.
+    </ParamField>
+    
+    <ParamField path="ignoreFilters" type="boolean" optional>
+      Whether to ignore audio filters when getting timestamp. Defaults to `false`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Return Value
+
+<ResponseField name="timeline" type="GuildQueueTimeline | null">
+  The timeline object if a queue exists, or `null` if no queue is found.
+  
+  <Expandable title="properties">
+    <ResponseField name="timestamp" type="PlayerTimestamp">
+      Current playback timestamp with current and total time information.
+    </ResponseField>
+    
+    <ResponseField name="volume" type="number">
+      Current volume level (0-200).
+    </ResponseField>
+    
+    <ResponseField name="paused" type="boolean">
+      Whether playback is currently paused.
+    </ResponseField>
+    
+    <ResponseField name="track" type="Track | null">
+      Currently playing track, or `null` if none.
+    </ResponseField>
+    
+    <ResponseField name="pause" type="() => boolean">
+      Pause playback. Returns `true` if successful.
+    </ResponseField>
+    
+    <ResponseField name="resume" type="() => boolean">
+      Resume playback. Returns `true` if successful.
+    </ResponseField>
+    
+    <ResponseField name="setVolume" type="(vol: number) => boolean">
+      Set volume (0-200). Returns `true` if successful.
+    </ResponseField>
+    
+    <ResponseField name="setPosition" type="(time: number) => Promise<boolean>">
+      Seek to a specific position in milliseconds. Returns `true` if successful.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## When to Use
+
+Use `useTimeline` when you need to:
+
+- Control playback (pause, resume)
+- Get current timestamp or track info
+- Seek to a specific position
+- Adjust volume
+- Check playback state
+
+## Example: Pause/Resume Command
+
+```typescript
+import { useTimeline } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('pause')
+    .setDescription('Pause or resume playback'),
+  async execute({ interaction }) {
+    const timeline = useTimeline();
+    
+    if (!timeline) {
+      return interaction.reply('❌ No music is playing!');
+    }
+    
+    if (!timeline.track) {
+      return interaction.reply('❌ No track is currently playing!');
+    }
+    
+    if (timeline.paused) {
+      timeline.resume();
+      return interaction.reply('▶️ Resumed playback');
+    } else {
+      timeline.pause();
+      return interaction.reply('⏸️ Paused playback');
+    }
+  }
+});
+```
+
+## Example: Volume Command
+
+```typescript
+import { useTimeline } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('volume')
+    .setDescription('Set or view the volume')
+    .addIntegerOption(option =>
+      option.setName('level')
+        .setDescription('Volume level (0-200)')
+        .setMinValue(0)
+        .setMaxValue(200)
+    ),
+  async execute({ interaction }) {
+    const timeline = useTimeline();
+    
+    if (!timeline) {
+      return interaction.reply('No music is playing!');
+    }
+    
+    const level = interaction.options.getInteger('level');
+    
+    if (level === null) {
+      return interaction.reply(`🔊 Current volume: **${timeline.volume}%**`);
+    }
+    
+    const success = timeline.setVolume(level);
+    
+    if (!success) {
+      return interaction.reply('❌ Failed to set volume!');
+    }
+    
+    return interaction.reply(`🔊 Volume set to **${level}%**`);
+  }
+});
+```
+
+## Example: Seek Command
+
+```typescript
+import { useTimeline } from 'discord-player';
+import ms from 'ms';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('seek')
+    .setDescription('Seek to a position in the track')
+    .addStringOption(option =>
+      option.setName('time')
+        .setDescription('Time to seek to (e.g., 1m30s, 90s)')
+        .setRequired(true)
+    ),
+  async execute({ interaction }) {
+    const timeline = useTimeline();
+    
+    if (!timeline) {
+      return interaction.reply('No music is playing!');
+    }
+    
+    if (!timeline.track) {
+      return interaction.reply('No track is playing!');
+    }
+    
+    const timeStr = interaction.options.getString('time', true);
+    const timeMs = ms(timeStr);
+    
+    if (!timeMs) {
+      return interaction.reply('Invalid time format! Use formats like: 1m30s, 90s, 2m');
+    }
+    
+    await interaction.deferReply();
+    
+    const success = await timeline.setPosition(timeMs);
+    
+    if (!success) {
+      return interaction.followUp('❌ Failed to seek!');
+    }
+    
+    return interaction.followUp(`⏩ Seeked to ${timeStr}`);
+  }
+});
+```
+
+## Example: Now Playing with Timeline
+
+```typescript
+import { useTimeline } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('nowplaying')
+    .setDescription('Show current track info'),
+  async execute({ interaction }) {
+    const timeline = useTimeline();
+    
+    if (!timeline) {
+      return interaction.reply('No music is playing!');
+    }
+    
+    if (!timeline.track) {
+      return interaction.reply('No track is playing!');
+    }
+    
+    const track = timeline.track;
+    const { current, total } = timeline.timestamp;
+    
+    return interaction.reply({
+      embeds: [{
+        title: '🎵 Now Playing',
+        description: `**${track.title}**\n${track.author}`,
+        fields: [
+          {
+            name: 'Duration',
+            value: `${current.label} / ${total.label}`,
+            inline: true
+          },
+          {
+            name: 'Volume',
+            value: `${timeline.volume}%`,
+            inline: true
+          },
+          {
+            name: 'Status',
+            value: timeline.paused ? '⏸️ Paused' : '▶️ Playing',
+            inline: true
+          }
+        ],
+        thumbnail: { url: track.thumbnail }
+      }]
+    });
+  }
+});
+```
+
+## Example: With Filters Ignored
+
+```typescript
+import { useTimeline } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('timestamp')
+    .setDescription('Get raw timestamp without filter effects'),
+  async execute({ interaction }) {
+    const timeline = useTimeline({ ignoreFilters: true });
+    
+    if (!timeline) {
+      return interaction.reply('No music is playing!');
+    }
+    
+    const { current, total } = timeline.timestamp;
+    
+    return interaction.reply(
+      `Raw timestamp: ${current.label} / ${total.label}`
+    );
+  }
+});
+```
+
+## Example: Progress Bar
+
+```typescript
+import { useTimeline } from 'discord-player';
+import { useQueue } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('progress')
+    .setDescription('Show playback progress'),
+  async execute({ interaction }) {
+    const timeline = useTimeline();
+    const queue = useQueue();
+    
+    if (!timeline || !queue) {
+      return interaction.reply('No music is playing!');
+    }
+    
+    if (!timeline.track) {
+      return interaction.reply('No track is playing!');
+    }
+    
+    const { current, total } = timeline.timestamp;
+    const progress = queue.node.createProgressBar();
+    
+    return interaction.reply({
+      embeds: [{
+        title: timeline.track.title,
+        description: `${progress}\n\n${current.label} / ${total.label}`,
+        footer: {
+          text: timeline.paused ? '⏸️ Paused' : '▶️ Playing'
+        }
+      }]
+    });
+  }
+});
+```
+
+## Related Hooks
+
+- [useQueue](/api/hooks/use-queue) - Access guild queue
+- [useVolume](/api/hooks/use-volume) - Dedicated volume control
+- [useHistory](/api/hooks/use-history) - Access queue history
+- [useMainPlayer](/api/hooks/use-main-player) - Access main player

@@ -1,0 +1,366 @@
+---
+title: useMetadata
+description: React-style hook to manage queue metadata with getter and setter
+icon: tags
+---
+
+## Overview
+
+The `useMetadata` hook provides a React-style state management interface for guild queue metadata. It returns a tuple with a getter function and a setter function, similar to React's `useState`.
+
+## Usage
+
+```typescript
+import { useMetadata } from 'discord-player';
+
+interface QueueMetadata {
+  interaction: CommandInteraction;
+  volume: number;
+}
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('getmeta')
+    .setDescription('Get queue metadata'),
+  async execute({ interaction }) {
+    const [getMeta, setMeta] = useMetadata<QueueMetadata>();
+    const metadata = getMeta();
+    
+    if (!metadata) {
+      return interaction.reply('No metadata found!');
+    }
+    
+    return interaction.reply(`Volume: ${metadata.volume}`);
+  }
+});
+```
+
+## Signature
+
+```typescript
+function useMetadata<T = unknown>(): MetadataDispatch<T>
+function useMetadata<T = unknown>(node: NodeResolvable): MetadataDispatch<T>
+
+type MetadataDispatch<T> = readonly [
+  () => T,
+  (metadata: T | SetterFN<T, T>) => void
+]
+
+type SetterFN<T, P> = (previous: P) => T
+```
+
+## Parameters
+
+<ParamField path="node" type="NodeResolvable" optional>
+  Guild queue node resolvable (guild ID, Guild object, or GuildQueue). If not provided, defaults to the guild from the command context.
+</ParamField>
+
+## Type Parameters
+
+<ParamField path="T" type="unknown" optional>
+  Type of the metadata. Defaults to `unknown`.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="dispatch" type="MetadataDispatch<T>">
+  A readonly tuple containing getter and setter functions.
+  
+  <Expandable title="tuple elements">
+    <ResponseField name="[0]" type="() => T">
+      Getter function that returns the current metadata value.
+    </ResponseField>
+    
+    <ResponseField name="[1]" type="(metadata: T | SetterFN<T, T>) => void">
+      Setter function that updates the metadata. Can accept either:
+      - A new metadata value directly
+      - A function that receives the previous metadata and returns the new value
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## When to Use
+
+Use `useMetadata` when you need to:
+
+- Store custom data with the queue (e.g., command interaction, text channel)
+- Access queue-specific configuration
+- Update metadata based on previous values
+- Share data between commands in the same queue
+- Track queue-specific state
+
+## Example: Basic Metadata Management
+
+```typescript
+import { useMetadata } from 'discord-player';
+
+interface QueueMeta {
+  interaction: CommandInteraction;
+  requestCount: number;
+}
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('increment')
+    .setDescription('Increment request count'),
+  async execute({ interaction }) {
+    const [getMeta, setMeta] = useMetadata<QueueMeta>();
+    
+    // Update using previous value
+    setMeta(prev => ({
+      ...prev,
+      requestCount: (prev.requestCount || 0) + 1
+    }));
+    
+    const meta = getMeta();
+    return interaction.reply(`Request count: ${meta.requestCount}`);
+  }
+});
+```
+
+## Example: Setting Metadata on Play
+
+```typescript
+import { useMainPlayer, useMetadata } from 'discord-player';
+import { ChatInputCommandInteraction, TextChannel } from 'discord.js';
+
+interface QueueMetadata {
+  interaction: ChatInputCommandInteraction;
+  channel: TextChannel;
+  djRole?: string;
+}
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('play')
+    .setDescription('Play a song')
+    .addStringOption(option =>
+      option.setName('query')
+        .setDescription('Song to play')
+        .setRequired(true)
+    ),
+  async execute({ interaction }) {
+    const player = useMainPlayer();
+    const channel = interaction.member.voice.channel;
+    
+    if (!channel) {
+      return interaction.reply('Join a voice channel first!');
+    }
+    
+    const query = interaction.options.getString('query', true);
+    await interaction.deferReply();
+    
+    const { track } = await player.play(channel, query, {
+      nodeOptions: {
+        metadata: {
+          interaction,
+          channel: interaction.channel as TextChannel,
+          djRole: '123456789'
+        } satisfies QueueMetadata
+      }
+    });
+    
+    return interaction.followUp(`Playing: **${track.title}**`);
+  }
+});
+```
+
+## Example: Accessing Stored Interaction
+
+```typescript
+import { useMetadata } from 'discord-player';
+import { ChatInputCommandInteraction } from 'discord.js';
+
+interface QueueMetadata {
+  interaction: ChatInputCommandInteraction;
+}
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('notify')
+    .setDescription('Send notification to original requester'),
+  async execute({ interaction }) {
+    const [getMeta] = useMetadata<QueueMetadata>();
+    const meta = getMeta();
+    
+    if (!meta) {
+      return interaction.reply('No metadata found!');
+    }
+    
+    // Use the stored interaction
+    await meta.interaction.followUp('Queue update!');
+    
+    return interaction.reply('Notification sent!');
+  }
+});
+```
+
+## Example: Conditional Metadata Updates
+
+```typescript
+import { useMetadata } from 'discord-player';
+
+interface QueueMetadata {
+  announceChannel?: string;
+  autoplay: boolean;
+  volume: number;
+}
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('config')
+    .setDescription('Configure queue settings')
+    .addBooleanOption(option =>
+      option.setName('autoplay')
+        .setDescription('Enable autoplay')
+    )
+    .addIntegerOption(option =>
+      option.setName('volume')
+        .setDescription('Default volume')
+        .setMinValue(0)
+        .setMaxValue(200)
+    ),
+  async execute({ interaction }) {
+    const [getMeta, setMeta] = useMetadata<QueueMetadata>();
+    const autoplay = interaction.options.getBoolean('autoplay');
+    const volume = interaction.options.getInteger('volume');
+    
+    // Update only changed values
+    setMeta(prev => ({
+      ...prev,
+      ...(autoplay !== null && { autoplay }),
+      ...(volume !== null && { volume })
+    }));
+    
+    const meta = getMeta();
+    
+    return interaction.reply({
+      embeds: [{
+        title: 'Queue Configuration',
+        fields: [
+          {
+            name: 'Autoplay',
+            value: meta.autoplay ? 'Enabled' : 'Disabled',
+            inline: true
+          },
+          {
+            name: 'Volume',
+            value: `${meta.volume}%`,
+            inline: true
+          }
+        ]
+      }]
+    });
+  }
+});
+```
+
+## Example: Function Setter Pattern
+
+```typescript
+import { useMetadata } from 'discord-player';
+
+interface QueueMetadata {
+  skipVotes: string[];
+  requiredVotes: number;
+}
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('voteskip')
+    .setDescription('Vote to skip the current track'),
+  async execute({ interaction }) {
+    const [getMeta, setMeta] = useMetadata<QueueMetadata>();
+    const userId = interaction.user.id;
+    
+    // Use function setter to access previous value
+    setMeta(prev => {
+      const votes = prev.skipVotes || [];
+      
+      if (votes.includes(userId)) {
+        return prev; // Already voted
+      }
+      
+      return {
+        ...prev,
+        skipVotes: [...votes, userId]
+      };
+    });
+    
+    const meta = getMeta();
+    const votes = meta.skipVotes?.length || 0;
+    const required = meta.requiredVotes || 3;
+    
+    if (votes >= required) {
+      // Skip the track
+      return interaction.reply(`✅ Skip vote passed! (${votes}/${required})`);
+    }
+    
+    return interaction.reply(`Vote registered! (${votes}/${required})`);
+  }
+});
+```
+
+## Example: With Custom Guild
+
+```typescript
+import { useMetadata } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('crossguild')
+    .setDescription('Access metadata from another guild')
+    .addStringOption(option =>
+      option.setName('guild-id')
+        .setDescription('Target guild ID')
+        .setRequired(true)
+    ),
+  async execute({ interaction }) {
+    const guildId = interaction.options.getString('guild-id', true);
+    const [getMeta] = useMetadata(guildId);
+    const meta = getMeta();
+    
+    if (!meta) {
+      return interaction.reply(`No metadata for guild ${guildId}`);
+    }
+    
+    return interaction.reply(`Found metadata for guild ${guildId}`);
+  }
+});
+```
+
+## Example: Resetting Metadata
+
+```typescript
+import { useMetadata } from 'discord-player';
+
+interface QueueMetadata {
+  skipVotes: string[];
+  announcements: number;
+}
+
+const defaultMetadata: QueueMetadata = {
+  skipVotes: [],
+  announcements: 0
+};
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('resetmeta')
+    .setDescription('Reset queue metadata to defaults'),
+  async execute({ interaction }) {
+    const [getMeta, setMeta] = useMetadata<QueueMetadata>();
+    
+    // Reset to defaults
+    setMeta(defaultMetadata);
+    
+    return interaction.reply('✅ Metadata reset to defaults');
+  }
+});
+```
+
+## Related Hooks
+
+- [useQueue](/api/hooks/use-queue) - Access guild queue
+- [useVolume](/api/hooks/use-volume) - Manage volume state
+- [useMainPlayer](/api/hooks/use-main-player) - Access main player

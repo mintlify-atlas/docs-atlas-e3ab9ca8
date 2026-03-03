@@ -1,0 +1,510 @@
+---
+title: Hooks
+description: React-like hooks system for accessing Discord Player resources
+icon: link
+---
+
+Discord Player provides a hooks system inspired by React, allowing you to access player resources within an execution context. This is particularly useful for organizing code and accessing queues without passing objects around.
+
+## Overview
+
+Hooks provide a clean way to access player resources within a specific context:
+
+```typescript
+import { useQueue, useMainPlayer } from 'discord-player';
+
+const player = useMainPlayer();
+const queue = useQueue();
+```
+
+<Note>
+Hooks must be called within a context provided by the player. This typically happens automatically when using extractors or event handlers.
+</Note>
+
+## Context System
+
+The hooks system uses Node.js AsyncLocalStorage to maintain context:
+
+```typescript
+import { createContext, useContext } from 'discord-player';
+
+// Create a custom context
+const myContext = createContext<{ userId: string }>();
+
+// Provide context value
+myContext.provide({ userId: '123' }, () => {
+  // Use context
+  const value = useContext(myContext);
+  console.log(value?.userId); // '123'
+});
+```
+
+## Available Hooks
+
+### useMainPlayer()
+
+Get the main Player instance:
+
+```typescript
+import { useMainPlayer } from 'discord-player';
+
+function myFunction() {
+  const player = useMainPlayer();
+  
+  // Access player methods
+  const stats = player.generateStatistics();
+  console.log(`Active queues: ${stats.queuesCount}`);
+}
+```
+
+**Returns:** `Player`
+
+### useQueue()
+
+Get the guild queue for the current context:
+
+```typescript
+import { useQueue } from 'discord-player';
+
+function myFunction() {
+  const queue = useQueue<MyMetadata>();
+  
+  if (!queue) {
+    console.log('No active queue');
+    return;
+  }
+  
+  console.log(`Playing: ${queue.currentTrack?.title}`);
+}
+```
+
+**Signature:**
+```typescript
+useQueue<Meta = unknown>(node?: NodeResolvable): GuildQueue<Meta> | null
+```
+
+**Parameters:**
+- `node` (optional): Guild ID, Guild object, or queue to resolve
+
+**Returns:** `GuildQueue<Meta> | null`
+
+### usePlayer()
+
+Get the player node (playback controller) for a queue:
+
+```typescript
+import { usePlayer } from 'discord-player';
+
+function myFunction() {
+  const player = usePlayer<MyMetadata>();
+  
+  if (!player) return;
+  
+  // Control playback
+  player.pause();
+  player.setVolume(50);
+  await player.play();
+}
+```
+
+**Signature:**
+```typescript
+usePlayer<Meta = unknown>(node?: NodeResolvable): GuildQueuePlayerNode<Meta> | null
+```
+
+**Returns:** `GuildQueuePlayerNode<Meta> | null`
+
+### useHistory()
+
+Get the queue history:
+
+```typescript
+import { useHistory } from 'discord-player';
+
+function myFunction() {
+  const history = useHistory<MyMetadata>();
+  
+  if (!history) return;
+  
+  // Access previous tracks
+  const previous = history.previousTrack;
+  console.log(`Previously played: ${previous?.title}`);
+  
+  // Navigate history
+  await history.back();
+}
+```
+
+**Signature:**
+```typescript
+useHistory<Meta = unknown>(node?: NodeResolvable): GuildQueueHistory<Meta> | null
+```
+
+**Returns:** `GuildQueueHistory<Meta> | null`
+
+### useMetadata()
+
+Get and set queue metadata:
+
+```typescript
+import { useMetadata } from 'discord-player';
+
+interface MyMetadata {
+  channel: TextChannel;
+  volume: number;
+}
+
+function myFunction() {
+  const [getMetadata, setMetadata] = useMetadata<MyMetadata>();
+  
+  // Get metadata
+  const metadata = getMetadata();
+  console.log(`Channel: ${metadata.channel.name}`);
+  
+  // Set metadata
+  setMetadata({ 
+    channel: metadata.channel,
+    volume: 80 
+  });
+  
+  // Update with function
+  setMetadata(prev => ({
+    ...prev,
+    volume: prev.volume + 10
+  }));
+}
+```
+
+**Signature:**
+```typescript
+useMetadata<T = unknown>(node?: NodeResolvable): readonly [
+  () => T,
+  (metadata: T | ((prev: T) => T)) => void
+]
+```
+
+**Returns:** Tuple of `[getter, setter]`
+
+### useTimeline()
+
+Get current playback timeline information:
+
+```typescript
+import { useTimeline } from 'discord-player';
+
+function myFunction() {
+  const timeline = useTimeline();
+  
+  if (!timeline) return;
+  
+  // Get playback info
+  console.log(`Current: ${timeline.timestamp.current.label}`);
+  console.log(`Duration: ${timeline.timestamp.total.label}`);
+  console.log(`Volume: ${timeline.volume}%`);
+  console.log(`Paused: ${timeline.paused}`);
+  
+  // Control playback
+  timeline.pause();
+  timeline.resume();
+  timeline.setVolume(75);
+  await timeline.setPosition(60000); // Seek to 1 minute
+}
+```
+
+**Signature:**
+```typescript
+useTimeline(options?: {
+  ignoreFilters?: boolean;
+  node?: NodeResolvable;
+}): GuildQueueTimeline | null
+```
+
+**Timeline Object:**
+```typescript
+interface GuildQueueTimeline {
+  readonly timestamp: PlayerTimestamp;
+  readonly volume: number;
+  readonly paused: boolean;
+  readonly track: Track | null;
+  pause(): boolean;
+  resume(): boolean;
+  setVolume(vol: number): boolean;
+  setPosition(time: number): Promise<boolean>;
+}
+```
+
+## Using Hooks in Extractors
+
+Hooks are automatically available within extractor methods:
+
+```typescript
+import { BaseExtractor, useMainPlayer } from 'discord-player';
+
+class MyExtractor extends BaseExtractor {
+  async handle(query: string) {
+    const player = useMainPlayer();
+    
+    // Access player within extractor context
+    if (player.hasDebugger) {
+      player.debug('Handling query in MyExtractor');
+    }
+    
+    return {
+      playlist: null,
+      tracks: []
+    };
+  }
+}
+```
+
+## Creating Custom Contexts
+
+Create your own contexts for custom functionality:
+
+```typescript
+import { createContext, useContext } from 'discord-player';
+
+interface UserContext {
+  id: string;
+  preferences: {
+    volume: number;
+    autoplay: boolean;
+  };
+}
+
+// Create context
+const userContext = createContext<UserContext>();
+
+// Provide context
+function withUserContext(userId: string, callback: () => void) {
+  const preferences = loadUserPreferences(userId);
+  
+  userContext.provide(
+    { id: userId, preferences },
+    callback
+  );
+}
+
+// Use context
+function handleCommand() {
+  const user = useContext(userContext);
+  
+  if (!user) {
+    console.log('No user context available');
+    return;
+  }
+  
+  console.log(`User ${user.id} prefers volume ${user.preferences.volume}`);
+}
+
+// Usage
+withUserContext('123456', () => {
+  handleCommand();
+});
+```
+
+## Context API
+
+### createContext()
+
+Create a new context:
+
+```typescript
+const context = createContext<MyType>(defaultValue?);
+```
+
+### useContext()
+
+Consume a context value:
+
+```typescript
+const value = useContext(context);
+```
+
+### Context Methods
+
+```typescript
+// Provide context value
+context.provide(value, () => {
+  // Code with context
+});
+
+// Consume context
+const value = context.consume();
+
+// Check if context is lost
+if (context.isLost) {
+  console.log('No context available');
+}
+
+// Exit context
+context.exit(() => {
+  // Code without context
+});
+```
+
+## Example: Command Handler with Hooks
+
+```typescript
+import { 
+  useQueue, 
+  usePlayer, 
+  useMetadata, 
+  useTimeline 
+} from 'discord-player';
+import { ChatInputCommandInteraction } from 'discord.js';
+
+interface QueueMetadata {
+  channel: TextChannel;
+  requestedBy: User;
+}
+
+async function handlePauseCommand(interaction: ChatInputCommandInteraction) {
+  const queue = useQueue<QueueMetadata>();
+  const player = usePlayer<QueueMetadata>();
+  
+  if (!queue || !player) {
+    return interaction.reply('No music is playing!');
+  }
+  
+  player.pause();
+  await interaction.reply('Paused playback');
+}
+
+async function handleVolumeCommand(
+  interaction: ChatInputCommandInteraction,
+  volume: number
+) {
+  const timeline = useTimeline();
+  
+  if (!timeline) {
+    return interaction.reply('No music is playing!');
+  }
+  
+  timeline.setVolume(volume);
+  await interaction.reply(`Volume set to ${volume}%`);
+}
+
+async function handleNowPlayingCommand(interaction: ChatInputCommandInteraction) {
+  const timeline = useTimeline();
+  
+  if (!timeline || !timeline.track) {
+    return interaction.reply('No music is playing!');
+  }
+  
+  const track = timeline.track;
+  const { current, total } = timeline.timestamp;
+  
+  await interaction.reply(
+    `Now playing: **${track.title}**\n` +
+    `Progress: ${current.label} / ${total.label}\n` +
+    `Volume: ${timeline.volume}%`
+  );
+}
+
+async function handleQueueCommand(interaction: ChatInputCommandInteraction) {
+  const queue = useQueue<QueueMetadata>();
+  const [getMetadata] = useMetadata<QueueMetadata>();
+  
+  if (!queue) {
+    return interaction.reply('No active queue!');
+  }
+  
+  const metadata = getMetadata();
+  const tracks = queue.tracks.store.slice(0, 10);
+  
+  const list = tracks
+    .map((track, i) => `${i + 1}. ${track.title} [${track.duration}]`)
+    .join('\n');
+  
+  await interaction.reply(
+    `**Queue for ${queue.guild.name}**\n` +
+    `Now playing: ${queue.currentTrack?.title}\n\n` +
+    `**Up next:**\n${list || 'Nothing'}\n\n` +
+    `Total: ${queue.size} tracks`
+  );
+}
+```
+
+## Example: Using Hooks in Event Handlers
+
+```typescript
+import { useQueue, useMetadata } from 'discord-player';
+
+interface QueueMetadata {
+  channel: TextChannel;
+}
+
+// Hooks work automatically in player.events context
+player.events.on('playerStart', (queue, track) => {
+  // Context is automatically provided
+  const [getMetadata] = useMetadata<QueueMetadata>();
+  const metadata = getMetadata();
+  
+  metadata.channel.send(`Now playing: **${track.title}**`);
+});
+
+player.events.on('audioTrackAdd', (queue, track) => {
+  const queue = useQueue<QueueMetadata>();
+  
+  if (!queue) return;
+  
+  const position = queue.size;
+  queue.metadata.channel.send(
+    `Added **${track.title}** to position ${position}`
+  );
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Type Safety with Metadata">
+    Always define metadata types for type-safe hook usage:
+    
+    ```typescript
+    interface MyMetadata {
+      channel: TextChannel;
+      volume: number;
+    }
+    
+    const queue = useQueue<MyMetadata>();
+    // Full type safety on queue.metadata
+    ```
+  </Accordion>
+
+  <Accordion title="Null Checks">
+    Always check for null returns from hooks:
+    
+    ```typescript
+    const queue = useQueue();
+    if (!queue) {
+      // Handle no active queue
+      return;
+    }
+    // Safe to use queue
+    ```
+  </Accordion>
+
+  <Accordion title="Context Awareness">
+    Hooks only work within proper context. If you get context errors, ensure you're calling hooks:
+    - Inside event handlers
+    - Inside extractor methods
+    - Within a custom context provider
+  </Accordion>
+</AccordionGroup>
+
+## Limitations
+
+<Warning>
+Hooks rely on AsyncLocalStorage and must be called within an active context. They will not work:
+- Outside of event handlers
+- In regular command handlers (unless wrapped with context)
+- After async operations that lose context
+</Warning>
+
+## See Also
+
+- [Player](/core/player) - Learn about the Player class
+- [GuildQueue](/core/queue) - Queue management
+- [Events](/core/events) - Event system overview

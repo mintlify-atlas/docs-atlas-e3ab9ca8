@@ -1,0 +1,362 @@
+---
+title: AudioFilters
+description: API reference for the AudioFilters utility class
+icon: waveform
+---
+
+## AudioFilters
+
+Utility class for managing FFmpeg audio filter definitions. Provides built-in filters and methods to create, validate, and manage custom audio filters.
+
+### Static Properties
+
+<ResponseField name="filters" type="Record<FiltersName, string>">
+  Collection of all available FFmpeg filter definitions. Built-in filters include:
+  
+  **Bass Filters:**
+  - `bassboost_low` - Low bass boost (15dB)
+  - `bassboost` - Medium bass boost (20dB)
+  - `bassboost_high` - High bass boost (30dB)
+  - `subboost` - Subwoofer boost
+  
+  **Effect Filters:**
+  - `8D` - 8D audio effect (pulsator)
+  - `vaporwave` - Vaporwave effect (slowed audio)
+  - `nightcore` - Nightcore effect (sped up audio)
+  - `lofi` - Lo-fi effect (slowed with extra stereo)
+  - `phaser` - Phaser effect
+  - `tremolo` - Tremolo effect
+  - `vibrato` - Vibrato effect
+  - `reverse` - Reverse audio
+  - `flanger` - Flanger effect
+  - `haas` - Haas effect
+  
+  **Frequency Filters:**
+  - `treble` - Treble boost
+  - `normalizer` - Audio normalization (compressor)
+  - `normalizer2` - Dynamic audio normalization
+  
+  **Spatial Filters:**
+  - `surrounding` - Surround sound
+  - `pulsator` - Pulsator effect
+  - `karaoke` - Karaoke effect (reduce vocals)
+  - `mono` - Convert to mono
+  - `mstlr` - Mid-side to left-right
+  - `mstrr` - Mid-side to right-right
+  
+  **Dynamic Range Filters:**
+  - `gate` - Audio gate
+  - `mcompand` - Multi-band compressor
+  - `compressor` - Dynamic range compressor
+  - `expander` - Dynamic range expander
+  - `softlimiter` - Soft limiter
+  
+  **Chorus Filters:**
+  - `chorus` - Chorus effect
+  - `chorus2d` - 2D chorus effect
+  - `chorus3d` - 3D chorus effect
+  
+  **Other Filters:**
+  - `fadein` - Fade in effect
+  - `dim` - Dim/muffle effect
+  - `earrape` - Earrape effect (extreme distortion)
+  - `silenceremove` - Remove silence
+</ResponseField>
+
+<ResponseField name="names" type="FiltersName[]">
+  Array of all filter names
+</ResponseField>
+
+<ResponseField name="length" type="number">
+  Number of available filters
+</ResponseField>
+
+### Static Methods
+
+#### get
+
+Retrieve the FFmpeg filter string for a specific filter.
+
+```typescript
+static get<K extends FiltersName>(name: K): string
+```
+
+<ParamField path="name" type="FiltersName" required>
+  The name of the filter to retrieve
+</ParamField>
+
+<ResponseField name="return" type="string">
+  The FFmpeg filter string, or the input name if not found
+</ResponseField>
+
+**Example:**
+```typescript
+const nightcoreFilter = AudioFilters.get('nightcore');
+console.log(nightcoreFilter); // 'aresample=48000,asetrate=48000*1.25'
+
+const bassFilter = AudioFilters.get('bassboost');
+console.log(bassFilter); // 'bass=g=20:f=110:w=0.3'
+```
+
+#### has
+
+Check if a filter name exists.
+
+```typescript
+static has<K extends FiltersName>(name: K): boolean
+```
+
+<ParamField path="name" type="FiltersName" required>
+  The filter name to check
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  `true` if the filter exists, `false` otherwise
+</ResponseField>
+
+**Example:**
+```typescript
+if (AudioFilters.has('nightcore')) {
+  console.log('Nightcore filter is available');
+}
+
+if (!AudioFilters.has('customFilter')) {
+  console.log('Custom filter does not exist');
+}
+```
+
+#### create
+
+Create FFmpeg filter arguments from filter names.
+
+```typescript
+static create<K extends FiltersName>(filters?: (K | string)[]): string
+```
+
+<ParamField path="filters" type="(FiltersName | string)[]">
+  Array of filter names to combine. If not provided, returns all filters
+</ParamField>
+
+<ResponseField name="return" type="string">
+  Comma-separated FFmpeg filter string ready to use with `-af` flag
+</ResponseField>
+
+**Example:**
+```typescript
+// Create filter string from multiple filters
+const filterString = AudioFilters.create(['bassboost', 'nightcore', '8D']);
+console.log(filterString);
+// Output: 'bass=g=20:f=110:w=0.3,aresample=48000,asetrate=48000*1.25,apulsator=hz=0.09'
+
+// Create all filters
+const allFilters = AudioFilters.create();
+
+// Empty array returns all filters
+const allFilters2 = AudioFilters.create([]);
+```
+
+#### define
+
+Define a new custom audio filter.
+
+```typescript
+static define(filterName: string, value: string): void
+```
+
+<ParamField path="filterName" type="string" required>
+  The name for the new filter
+</ParamField>
+
+<ParamField path="value" type="string" required>
+  The FFmpeg filter string
+</ParamField>
+
+**Example:**
+```typescript
+// Define a custom speed filter
+AudioFilters.define('doublespeed', 'asetrate=48000*2,aresample=48000');
+
+// Define a custom pitch filter
+AudioFilters.define('highpitch', 'asetrate=48000*1.5,aresample=48000,atempo=0.67');
+
+// Now you can use it
+const customFilter = AudioFilters.get('doublespeed');
+```
+
+#### defineBulk
+
+Define multiple custom filters at once.
+
+```typescript
+static defineBulk(filtersArray: { name: string; value: string }[]): void
+```
+
+<ParamField path="filtersArray" type="{ name: string; value: string }[]" required>
+  Array of filter definitions with `name` and `value` properties
+</ParamField>
+
+**Example:**
+```typescript
+AudioFilters.defineBulk([
+  {
+    name: 'slowmotion',
+    value: 'asetrate=48000*0.5,aresample=48000'
+  },
+  {
+    name: 'chipmunk',
+    value: 'asetrate=48000*1.75,aresample=48000'
+  },
+  {
+    name: 'deep',
+    value: 'asetrate=48000*0.75,aresample=48000'
+  }
+]);
+
+// Use the custom filters
+const filters = AudioFilters.create(['slowmotion', 'deep']);
+```
+
+#### toString
+
+Convert all filters to a single FFmpeg filter string.
+
+```typescript
+static toString(): string
+```
+
+<ResponseField name="return" type="string">
+  Comma-separated string of all filter values
+</ResponseField>
+
+**Example:**
+```typescript
+const allFiltersString = AudioFilters.toString();
+console.log(allFiltersString);
+// Output: 'bass=g=15:f=110:w=0.3,bass=g=20:f=110:w=0.3,...'
+```
+
+#### [Symbol.iterator]
+
+Makes AudioFilters iterable over all filter definitions.
+
+```typescript
+static *[Symbol.iterator](): IterableIterator<{
+  name: FiltersName;
+  value: string;
+}>
+```
+
+<ResponseField name="return" type="IterableIterator<{ name: FiltersName; value: string }>">
+  Iterator yielding objects with `name` and `value` properties
+</ResponseField>
+
+**Example:**
+```typescript
+// Iterate over all filters
+for (const { name, value } of AudioFilters) {
+  console.log(`${name}: ${value}`);
+}
+
+// Convert to array
+const allFilters = [...AudioFilters];
+console.log(allFilters);
+// Output: [
+//   { name: 'bassboost_low', value: 'bass=g=15:f=110:w=0.3' },
+//   { name: 'bassboost', value: 'bass=g=20:f=110:w=0.3' },
+//   ...
+// ]
+```
+
+## Types
+
+### FiltersName
+
+Type representing all valid filter names.
+
+```typescript
+type FiltersName = keyof QueueFilters;
+```
+
+### QueueFilters
+
+Interface defining all available FFmpeg filters.
+
+```typescript
+interface QueueFilters {
+  bassboost_low?: boolean;
+  bassboost?: boolean;
+  bassboost_high?: boolean;
+  '8D'?: boolean;
+  vaporwave?: boolean;
+  nightcore?: boolean;
+  phaser?: boolean;
+  tremolo?: boolean;
+  vibrato?: boolean;
+  reverse?: boolean;
+  treble?: boolean;
+  normalizer?: boolean;
+  normalizer2?: boolean;
+  surrounding?: boolean;
+  pulsator?: boolean;
+  subboost?: boolean;
+  karaoke?: boolean;
+  flanger?: boolean;
+  gate?: boolean;
+  haas?: boolean;
+  mcompand?: boolean;
+  mono?: boolean;
+  mstlr?: boolean;
+  mstrr?: boolean;
+  compressor?: boolean;
+  expander?: boolean;
+  softlimiter?: boolean;
+  chorus?: boolean;
+  chorus2d?: boolean;
+  chorus3d?: boolean;
+  fadein?: boolean;
+  dim?: boolean;
+  earrape?: boolean;
+  lofi?: boolean;
+  silenceremove?: boolean;
+}
+```
+
+## Usage Example
+
+```typescript
+import { AudioFilters } from 'discord-player';
+
+// Get a specific filter
+const nightcore = AudioFilters.get('nightcore');
+
+// Check if filter exists
+if (AudioFilters.has('vaporwave')) {
+  console.log('Vaporwave filter available');
+}
+
+// Create combined filter string
+const combined = AudioFilters.create(['bassboost', 'nightcore', '8D']);
+
+// Define custom filters
+AudioFilters.define('myfilter', 'volume=2.0');
+
+// Define multiple custom filters
+AudioFilters.defineBulk([
+  { name: 'underwater', value: 'aecho=0.8:0.88:60:0.4' },
+  { name: 'telephone', value: 'highpass=f=300,lowpass=f=3000' }
+]);
+
+// List all available filters
+console.log('Available filters:', AudioFilters.names);
+console.log('Total filters:', AudioFilters.length);
+
+// Iterate over all filters
+for (const { name, value } of AudioFilters) {
+  console.log(`${name}: ${value}`);
+}
+```
+
+## Related
+
+- [GuildQueueAudioFilters](/api/guild-queue-audio-filters) - Audio filters manager for queues
+- [StreamDispatcher](/api/stream-dispatcher) - Stream dispatcher for audio playback

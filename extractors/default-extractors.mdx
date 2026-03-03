@@ -1,0 +1,440 @@
+---
+title: Default Extractors
+description: Built-in extractors for popular music platforms
+icon: box
+---
+
+## Available Extractors
+
+Discord Player provides official extractors for popular music platforms in the `@discord-player/extractor` package:
+
+```typescript
+import { DefaultExtractors } from '@discord-player/extractor';
+
+// Includes:
+// - SpotifyExtractor
+// - SoundCloudExtractor
+// - AppleMusicExtractor
+// - VimeoExtractor
+// - ReverbnationExtractor
+// - AttachmentExtractor
+
+await player.extractors.loadMulti(DefaultExtractors);
+```
+
+<Info>
+All default extractors are open source and maintained by the Discord Player team. You can find their source code in the `@discord-player/extractor` package.
+</Info>
+
+## Spotify Extractor
+
+Extracts metadata from Spotify tracks, albums, and playlists. Requires bridging for audio streaming.
+
+### Configuration
+
+```typescript
+import { SpotifyExtractor } from '@discord-player/extractor';
+
+await player.extractors.register(SpotifyExtractor, {
+  clientId: 'your-spotify-client-id',
+  clientSecret: 'your-spotify-client-secret',
+  // Optional: Custom stream function
+  createStream: async (ext, url) => {
+    // Return custom stream or URL
+    return 'https://custom-stream-url.com';
+  }
+});
+```
+
+<Note>
+**Environment Variables**: You can also set `DP_SPOTIFY_CLIENT_ID` and `DP_SPOTIFY_CLIENT_SECRET` environment variables instead of passing them in options.
+</Note>
+
+### Getting Spotify Credentials
+
+<Steps>
+  <Step title="Visit Spotify Developer Dashboard">
+    Go to [developer.spotify.com](https://developer.spotify.com/dashboard)
+  </Step>
+  <Step title="Create an Application">
+    Click "Create an App" and fill in the required information
+  </Step>
+  <Step title="Copy Credentials">
+    Copy your Client ID and Client Secret from the app settings
+  </Step>
+</Steps>
+
+### Supported Features
+
+- **Tracks**: `https://open.spotify.com/track/...`
+- **Albums**: `https://open.spotify.com/album/...`
+- **Playlists**: `https://open.spotify.com/playlist/...`
+- **Search**: `spsearch:query` or use `QueryType.SPOTIFY_SEARCH`
+- **Related Tracks**: Automatically finds related tracks for autoplay
+
+### Example
+
+```typescript
+// Search Spotify
+const result = await player.search('spsearch:imagine dragons', {
+  requestedBy: interaction.user
+});
+
+// Direct Spotify URL
+const track = await player.search(
+  'https://open.spotify.com/track/5CQ30WqJwcep0pYcV4AMNc',
+  { requestedBy: interaction.user }
+);
+
+// Spotify playlist
+const playlist = await player.search(
+  'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+  { requestedBy: interaction.user }
+);
+```
+
+### Identifier
+
+```typescript
+SpotifyExtractor.identifier // 'com.discord-player.spotifyextractor'
+```
+
+## SoundCloud Extractor
+
+Extracts and streams audio from SoundCloud. Provides both metadata extraction and direct streaming.
+
+### Configuration
+
+```typescript
+import { SoundCloudExtractor } from '@discord-player/extractor';
+
+await player.extractors.register(SoundCloudExtractor, {
+  clientId: 'your-soundcloud-client-id',
+  oauthToken: 'your-oauth-token', // Optional
+  proxy: 'http://proxy.example.com' // Optional
+});
+```
+
+### Supported Features
+
+- **Tracks**: Direct SoundCloud track URLs
+- **Playlists**: SoundCloud set/playlist URLs
+- **Search**: `scsearch:query` or use `QueryType.SOUNDCLOUD_SEARCH`
+- **Related Tracks**: Fetches related tracks from SoundCloud
+- **Streaming**: Direct audio streaming without bridging
+
+### Example
+
+```typescript
+// Search SoundCloud
+const result = await player.search('scsearch:alan walker faded', {
+  requestedBy: interaction.user
+});
+
+// Direct SoundCloud URL
+const track = await player.search(
+  'https://soundcloud.com/nocopyrightsounds/alan-walker-faded',
+  { requestedBy: interaction.user }
+);
+
+// SoundCloud playlist
+const playlist = await player.search(
+  'https://soundcloud.com/user/sets/playlist-name',
+  { requestedBy: interaction.user }
+);
+```
+
+### Related Tracks
+
+SoundCloud extractor provides high-quality related tracks:
+
+```typescript
+const queue = useQueue(interaction.guildId);
+const history = queue.history;
+
+// Get related tracks (automatically filters previews and duplicates)
+const related = await soundCloudExtractor.getRelatedTracks(currentTrack, history);
+```
+
+### Identifier
+
+```typescript
+SoundCloudExtractor.identifier // 'com.discord-player.soundcloudextractor'
+```
+
+## Apple Music Extractor
+
+Extracts metadata from Apple Music. Requires bridging for audio streaming.
+
+### Configuration
+
+```typescript
+import { AppleMusicExtractor } from '@discord-player/extractor';
+
+await player.extractors.register(AppleMusicExtractor, {
+  // Optional: Custom stream function
+  createStream: async (ext, url, track) => {
+    // Return custom stream or URL
+    return 'https://custom-stream-url.com';
+  }
+});
+```
+
+### Supported Features
+
+- **Songs**: Apple Music song URLs
+- **Albums**: Apple Music album URLs
+- **Playlists**: Apple Music playlist URLs
+- **Search**: `amsearch:query` or use `QueryType.APPLE_MUSIC_SEARCH`
+- **Related Tracks**: Finds related tracks based on artist or title
+
+### Example
+
+```typescript
+// Search Apple Music
+const result = await player.search('amsearch:taylor swift', {
+  requestedBy: interaction.user
+});
+
+// Direct Apple Music URL
+const track = await player.search(
+  'https://music.apple.com/us/album/shake-it-off/1440933467?i=1440933755',
+  { requestedBy: interaction.user }
+);
+
+// Apple Music playlist
+const playlist = await player.search(
+  'https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb',
+  { requestedBy: interaction.user }
+);
+```
+
+### Identifier
+
+```typescript
+AppleMusicExtractor.identifier // 'com.discord-player.applemusicextractor'
+```
+
+## Vimeo Extractor
+
+Extracts and streams audio from Vimeo videos.
+
+### Configuration
+
+```typescript
+import { VimeoExtractor } from '@discord-player/extractor';
+
+// No configuration needed
+await player.extractors.register(VimeoExtractor, {});
+```
+
+### Supported Features
+
+- **Videos**: Direct Vimeo video URLs
+- **Streaming**: Extracts audio stream from videos
+
+### Example
+
+```typescript
+const result = await player.search(
+  'https://vimeo.com/123456789',
+  { 
+    requestedBy: interaction.user,
+    searchEngine: QueryType.VIMEO
+  }
+);
+```
+
+### Identifier
+
+```typescript
+VimeoExtractor.identifier // 'com.discord-player.vimeoextractor'
+```
+
+## Reverbnation Extractor
+
+Extracts and streams audio from Reverbnation.
+
+### Configuration
+
+```typescript
+import { ReverbnationExtractor } from '@discord-player/extractor';
+
+// No configuration needed
+await player.extractors.register(ReverbnationExtractor, {});
+```
+
+### Supported Features
+
+- **Tracks**: Direct Reverbnation track URLs
+- **Streaming**: Direct audio streaming
+- **Metadata**: Extracts title, artist, thumbnail, duration, and lyrics
+
+### Example
+
+```typescript
+const result = await player.search(
+  'https://www.reverbnation.com/artist/song',
+  { 
+    requestedBy: interaction.user,
+    searchEngine: QueryType.REVERBNATION
+  }
+);
+```
+
+### Identifier
+
+```typescript
+ReverbnationExtractor.identifier // 'com.discord-player.reverbnationextractor'
+```
+
+## Attachment Extractor
+
+Handles direct audio file URLs and local files. This extractor has the lowest priority (0) to avoid conflicts.
+
+### Configuration
+
+```typescript
+import { AttachmentExtractor } from '@discord-player/extractor';
+
+// No configuration needed
+await player.extractors.register(AttachmentExtractor, {});
+```
+
+### Supported Features
+
+- **Direct URLs**: Any direct audio/video URL
+- **Local Files**: File paths on the system
+- **Supported Formats**: Audio, video, OGG, raw PCM, raw Opus
+- **Metadata Extraction**: Uses mediaplex to read file metadata (requires optional dependency)
+- **Discord Attachments**: Handles Discord message attachments
+
+### Supported MIME Types
+
+- `audio/*` - All audio formats
+- `video/*` - All video formats
+- `application/ogg` - OGG files
+- `raw/pcm` - Raw PCM audio
+- `raw/opus` - Raw Opus audio
+
+### Example
+
+```typescript
+// Direct URL
+const result = await player.search(
+  'https://example.com/audio.mp3',
+  { 
+    requestedBy: interaction.user,
+    searchEngine: QueryType.ARBITRARY
+  }
+);
+
+// Local file
+const localFile = await player.search(
+  '/path/to/audio.mp3',
+  { 
+    requestedBy: interaction.user,
+    searchEngine: QueryType.FILE
+  }
+);
+
+// Discord attachment
+const attachment = interaction.options.getAttachment('file');
+const track = await player.search(
+  attachment.url,
+  { 
+    requestedBy: interaction.user,
+    searchEngine: QueryType.ARBITRARY
+  }
+);
+```
+
+### Metadata Extraction
+
+The attachment extractor can extract metadata from audio files if `mediaplex` is installed:
+
+```bash
+npm install mediaplex
+```
+
+It will automatically extract:
+- **Duration**: Actual file duration
+- **Title**: From file metadata
+- **Artist**: From file metadata
+- **Format**: Audio codec and container information
+
+### Priority
+
+The attachment extractor uses **priority 0** (lowest) to ensure it only handles queries that no other extractor can process:
+
+```typescript /priority/
+public priority = 0; // Lowest priority
+```
+
+### Identifier
+
+```typescript
+AttachmentExtractor.identifier // 'com.discord-player.attachmentextractor'
+```
+
+## Loading All Extractors
+
+Load all default extractors with custom options:
+
+```typescript
+import { DefaultExtractors } from '@discord-player/extractor';
+
+await player.extractors.loadMulti(DefaultExtractors, {
+  'com.discord-player.spotifyextractor': {
+    clientId: process.env.SPOTIFY_CLIENT_ID,
+    clientSecret: process.env.SPOTIFY_CLIENT_SECRET
+  },
+  'com.discord-player.soundcloudextractor': {
+    clientId: process.env.SOUNDCLOUD_CLIENT_ID
+  },
+  'com.discord-player.applemusicextractor': {
+    // Apple Music config
+  }
+});
+```
+
+## Selective Loading
+
+Load only specific extractors:
+
+```typescript
+import { 
+  SpotifyExtractor, 
+  SoundCloudExtractor,
+  AttachmentExtractor 
+} from '@discord-player/extractor';
+
+// Load only these three
+await player.extractors.loadMulti([
+  SpotifyExtractor,
+  SoundCloudExtractor,
+  AttachmentExtractor
+]);
+```
+
+## Extractor Comparison
+
+| Extractor | Streaming | Bridging | Search | Playlists | Configuration |
+|-----------|-----------|----------|--------|-----------|---------------|
+| **Spotify** | No | Yes | Yes | Yes | Required |
+| **SoundCloud** | Yes | Yes | Yes | Yes | Optional |
+| **Apple Music** | No | Yes | Yes | Yes | Optional |
+| **Vimeo** | Yes | No | No | No | None |
+| **Reverbnation** | Yes | No | No | No | None |
+| **Attachment** | Yes | No | No | No | None |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Custom Extractors" icon="code" href="/extractors/custom-extractors">
+    Create your own extractors for custom sources
+  </Card>
+  <Card title="Bridging" icon="arrows-left-right" href="/extractors/overview#bridging-system">
+    Learn more about the bridging system
+  </Card>
+</CardGroup>

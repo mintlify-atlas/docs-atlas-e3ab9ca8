@@ -1,0 +1,232 @@
+---
+title: Query Caching
+description: Learn how to use the query caching system to improve search performance
+icon: database
+---
+
+## Overview
+
+Discord Player provides a built-in query caching system that stores search results to improve performance and reduce redundant API calls. The cache automatically expires entries after a configurable interval and can be customized with your own cache provider.
+
+## Default Query Cache
+
+The default `QueryCache` implementation stores track URLs in memory and automatically cleans up expired entries.
+
+### Configuration
+
+```typescript
+import { Player } from 'discord-player';
+
+const player = new Player(client, {
+  queryCache: null // Disable cache (default: enabled)
+});
+```
+
+### Cache Options
+
+The query cache accepts the following options:
+
+<ParamField path="checkInterval" type="number" default="18000000">
+  Interval in milliseconds to check for expired cache entries (default: 5 hours)
+</ParamField>
+
+### Example Usage
+
+```typescript
+import { Player, QueryCache } from 'discord-player';
+
+// Create a custom cache instance
+const cache = new QueryCache(player, {
+  checkInterval: 3600000 // 1 hour
+});
+
+const player = new Player(client, {
+  queryCache: cache
+});
+```
+
+## How It Works
+
+The caching system works automatically:
+
+1. When you search for a track, the result is cached using the track URL as the key
+2. Subsequent searches for the same URL return the cached result
+3. Cache entries expire after 5 hours by default
+4. A cleanup timer runs at the configured interval to remove expired entries
+
+```typescript
+// First search - fetches from source
+const result = await player.search('https://youtube.com/watch?v=dQw4w9WgXcQ');
+
+// Second search - returns from cache (faster)
+const cachedResult = await player.search('https://youtube.com/watch?v=dQw4w9WgXcQ');
+```
+
+## Custom Cache Provider
+
+You can implement your own cache provider by implementing the `QueryCacheProvider` interface:
+
+```typescript
+import { QueryCacheProvider, SearchResult } from 'discord-player';
+
+class RedisCache implements QueryCacheProvider<Track> {
+  async getData(): Promise<DiscordPlayerQueryResultCache<Track>[]> {
+    // Return all cached entries
+    const keys = await redis.keys('dp:cache:*');
+    const entries = [];
+    
+    for (const key of keys) {
+      const data = await redis.get(key);
+      entries.push(JSON.parse(data));
+    }
+    
+    return entries;
+  }
+
+  async addData(data: SearchResult): Promise<void> {
+    // Store search results in Redis
+    for (const track of data.tracks) {
+      await redis.setex(
+        `dp:cache:${track.url}`,
+        18000, // 5 hours
+        JSON.stringify(new DiscordPlayerQueryResultCache(track))
+      );
+    }
+  }
+
+  async resolve(context: QueryCacheResolverContext): Promise<SearchResult> {
+    // Resolve a query from cache
+    const cached = await redis.get(`dp:cache:${context.query}`);
+    
+    if (!cached) {
+      return new SearchResult(this.player, {
+        query: context.query,
+        requestedBy: context.requestedBy,
+        queryType: context.queryType,
+      });
+    }
+
+    const entry = JSON.parse(cached);
+    return new SearchResult(this.player, {
+      query: context.query,
+      tracks: [entry.data],
+      playlist: null,
+      queryType: context.queryType,
+      requestedBy: context.requestedBy,
+    });
+  }
+}
+
+// Use custom cache
+const player = new Player(client, {
+  queryCache: new RedisCache()
+});
+```
+
+## Cache Management
+
+### Manual Cleanup
+
+You can manually trigger cache cleanup:
+
+```typescript
+// Access the cache instance
+const cache = player.options.queryCache;
+
+if (cache) {
+  // Manually clean expired entries
+  await cache.cleanup();
+  
+  // Clear all entries
+  await cache.clear();
+  
+  // Get all cached data
+  const allEntries = await cache.getData();
+  console.log(`Cache contains ${allEntries.length} entries`);
+}
+```
+
+### Bypassing Cache
+
+You can bypass the cache for specific searches:
+
+```typescript
+// Ignore cache and fetch fresh results
+const result = await player.search('Rick Astley', {
+  ignoreCache: true
+});
+```
+
+## Cache Entry Structure
+
+Each cache entry is wrapped in a `DiscordPlayerQueryResultCache` object:
+
+<ResponseField name="data" type="T">
+  The cached data (usually a Track)
+</ResponseField>
+
+<ResponseField name="expireAfter" type="number">
+  Timestamp (in milliseconds) when this entry expires
+</ResponseField>
+
+```typescript
+class DiscordPlayerQueryResultCache<T = unknown> {
+  public expireAfter: number;
+  
+  constructor(public data: T, expireAfter: number = 18000000) {
+    this.expireAfter = Date.now() + expireAfter;
+  }
+
+  hasExpired(): boolean {
+    return Date.now() <= this.expireAfter;
+  }
+}
+```
+
+## Performance Benefits
+
+<CardGroup cols={2}>
+  <Card title="Reduced API Calls" icon="bolt">
+    Cache frequently requested tracks to avoid hitting rate limits
+  </Card>
+  <Card title="Faster Response" icon="clock">
+    Return cached results instantly without network requests
+  </Card>
+  <Card title="Lower Bandwidth" icon="download">
+    Save bandwidth by reusing previously fetched metadata
+  </Card>
+  <Card title="Custom Storage" icon="server">
+    Use Redis, database, or any storage backend you prefer
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Set appropriate expiry times">
+    Balance between cache freshness and performance. 5 hours is a good default, but you may want shorter times for frequently updated content.
+  </Accordion>
+  
+  <Accordion title="Monitor cache size">
+    For high-traffic bots, consider implementing cache size limits to prevent memory issues.
+  </Accordion>
+  
+  <Accordion title="Use persistent storage for large bots">
+    If your bot handles many unique queries, implement a Redis or database-backed cache provider.
+  </Accordion>
+  
+  <Accordion title="Clear cache on extractor updates">
+    When updating extractors, clear the cache to ensure users get fresh metadata.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Search API" icon="magnifying-glass" href="/api/search">
+    Learn about search options and query types
+  </Card>
+  <Card title="Player Configuration" icon="gear" href="/guide/player">
+    Configure other player options
+  </Card>
+</CardGroup>

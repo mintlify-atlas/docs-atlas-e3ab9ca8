@@ -1,0 +1,517 @@
+---
+title: Queue Management
+description: Advanced techniques for managing playback queues in Discord Player
+icon: list-ol
+---
+
+## Overview
+
+GuildQueue provides powerful methods for managing tracks, including adding, removing, reordering, and traversing your music queue. This guide covers advanced queue management patterns.
+
+## Queue Basics
+
+### Creating a Queue
+
+```typescript GuildQueue.ts
+const queue = player.nodes.create(interaction.guild, {
+  metadata: {
+    channel: interaction.channel,
+    client: interaction.guild.members.me,
+    requestedBy: interaction.user,
+  },
+  queueStrategy: 'default', // or 'shuffled'
+  maxSize: 1000,
+  maxHistorySize: 100,
+});
+```
+
+### Queue Properties
+
+```typescript
+// Current track
+const current = queue.currentTrack;
+
+// Queue size
+const size = queue.size; // or queue.getSize()
+
+// Check if empty
+const isEmpty = queue.isEmpty();
+
+// Check if full
+const isFull = queue.isFull();
+
+// Get capacity (remaining space)
+const capacity = queue.getCapacity();
+
+// Check if playing
+const isPlaying = queue.isPlaying();
+
+// Estimated duration (ms)
+const duration = queue.estimatedDuration;
+const formatted = queue.durationFormatted; // "1:23:45"
+```
+
+## Adding Tracks
+
+### Basic Addition
+
+```typescript GuildQueue.ts
+// Add single track
+queue.addTrack(track);
+
+// Add multiple tracks
+queue.addTrack([track1, track2, track3]);
+
+// Add playlist
+queue.addTrack(playlist);
+```
+
+<Info>
+`addTrack` emits `audioTrackAdd` for single tracks and `audioTracksAdd` for arrays.
+</Info>
+
+### Prepending Tracks
+
+Insert tracks at the beginning of the queue:
+
+```typescript GuildQueue.ts
+// Prepend to start (index 0)
+queue.prepend(track);
+
+// Prepend before specific position
+queue.prepend(track, 3); // Insert before track at index 3
+
+// Prepend multiple tracks
+queue.prepend([track1, track2]);
+```
+
+### Appending Tracks
+
+Insert tracks after a specific position:
+
+```typescript GuildQueue.ts
+// Append after start
+queue.append(track);
+
+// Append after specific position
+queue.append(track, 5); // Insert after track at index 5
+
+// Append multiple tracks
+queue.append([track1, track2], 2);
+```
+
+### Inserting at Specific Index
+
+```typescript GuildQueue.ts
+// Insert at specific position
+queue.insertTrack(track, 3);
+```
+
+## Removing Tracks
+
+### Remove by Track Reference
+
+```typescript
+queue.removeTrack(track);
+```
+
+### Remove by Index
+
+```typescript
+queue.node.remove(0); // Remove first track
+queue.node.remove(5); // Remove track at index 5
+```
+
+### Clear Queue
+
+```typescript
+// Clear all tracks and history
+queue.clear();
+```
+
+## Reordering Tracks
+
+### Moving Tracks
+
+```typescript GuildQueue.ts
+// Move track to new position
+queue.moveTrack(track, 0); // Move to front
+queue.moveTrack(track, 5); // Move to index 5
+```
+
+### Swapping Tracks
+
+```typescript GuildQueue.ts
+// Swap two tracks
+queue.swapTracks(track1, track2);
+```
+
+### Copying Tracks
+
+```typescript GuildQueue.ts
+// Clone a track to a new position
+queue.copyTrack(track, 3);
+```
+
+## Shuffle Mode
+
+### Dynamic Shuffle
+
+Shuffle without mutating the queue:
+
+```typescript GuildQueue.ts
+// Enable dynamic shuffle
+queue.enableShuffle(true); // Default: true
+
+// Check shuffle state
+const isShuffling = queue.isShuffling;
+
+// Disable shuffle
+queue.disableShuffle();
+
+// Toggle shuffle
+const shuffleState = queue.toggleShuffle();
+```
+
+<Info>
+Dynamic shuffle picks random tracks without modifying the queue order. Each track plays only once until the queue is empty.
+</Info>
+
+### In-Place Shuffle
+
+Permanently shuffle the queue:
+
+```typescript
+// Shuffle and mutate queue
+queue.enableShuffle(false);
+// or
+queue.tracks.shuffle();
+```
+
+<Warning>
+In-place shuffle permanently reorders tracks and cannot be undone.
+</Warning>
+
+## Repeat Modes
+
+```typescript GuildQueue.ts
+import { QueueRepeatMode } from 'discord-player';
+
+// Disable repeat
+queue.setRepeatMode(QueueRepeatMode.OFF);
+
+// Repeat current track
+queue.setRepeatMode(QueueRepeatMode.TRACK);
+
+// Repeat entire queue
+queue.setRepeatMode(QueueRepeatMode.QUEUE);
+
+// Autoplay similar tracks when queue ends
+queue.setRepeatMode(QueueRepeatMode.AUTOPLAY);
+
+// Get current mode
+const mode = queue.repeatMode;
+```
+
+### Repeat Mode Behaviors
+
+<CardGroup cols={2}>
+  <Card title="OFF" icon="circle-stop">
+    Queue stops when all tracks finish playing.
+  </Card>
+  
+  <Card title="TRACK" icon="repeat-1">
+    Current track repeats indefinitely.
+  </Card>
+  
+  <Card title="QUEUE" icon="repeat">
+    Queue repeats from the beginning when it ends.
+  </Card>
+  
+  <Card title="AUTOPLAY" icon="wand-magic-sparkles">
+    Automatically plays similar tracks from the extractor when queue ends.
+  </Card>
+</CardGroup>
+
+## History Management
+
+### Accessing History
+
+```typescript GuildQueueHistory.ts
+// Get previous track
+const previous = queue.history.previousTrack;
+
+// Get current track
+const current = queue.history.currentTrack;
+
+// Get next track
+const next = queue.history.nextTrack;
+
+// History size
+const historySize = queue.history.size;
+
+// Check if history is empty
+const isEmpty = queue.history.isEmpty();
+```
+
+### Navigating History
+
+```typescript GuildQueueHistory.ts
+// Play previous track
+await queue.history.previous();
+// or
+await queue.history.back();
+
+// Play previous without keeping current in queue
+await queue.history.previous(false);
+
+// Play next track
+await queue.history.next();
+```
+
+### Managing History Size
+
+```typescript GuildQueue.ts
+// Set max history size
+queue.setMaxHistorySize(50);
+
+// Get max history size
+const maxSize = queue.maxHistorySize;
+
+// Clear history
+queue.history.clear();
+
+// Disable history entirely
+const queue = player.nodes.create(interaction.guild, {
+  disableHistory: true,
+});
+```
+
+## Queue Size Limits
+
+### Setting Limits
+
+```typescript GuildQueue.ts
+// Set maximum queue size
+queue.setMaxSize(500);
+
+// Get maximum size
+const maxSize = queue.maxSize; // or queue.getMaxSize()
+
+// Unlimited queue
+queue.setMaxSize(Infinity);
+```
+
+### Capacity Checking
+
+```typescript
+if (queue.isFull()) {
+  await interaction.reply('Queue is full!');
+  return;
+}
+
+const remaining = queue.getCapacity();
+await interaction.reply(`Can add ${remaining} more tracks`);
+```
+
+## Accessing Queue Tracks
+
+### Direct Access
+
+```typescript
+// Get track by index
+const track = queue.tracks.at(0);
+
+// Get all tracks
+const allTracks = queue.tracks.store;
+
+// Map over tracks
+const titles = queue.tracks.store.map(t => t.title);
+
+// Filter tracks
+const longTracks = queue.tracks.store.filter(t => t.durationMS > 300_000);
+```
+
+### Queue Store Methods
+
+```typescript
+// Add to queue
+queue.tracks.add(track);
+queue.tracks.add([track1, track2]);
+
+// Remove from queue
+queue.tracks.removeOne(track => track.id === specificId);
+
+// Clear queue
+queue.tracks.clear();
+
+// Shuffle queue
+queue.tracks.shuffle();
+
+// Dispatch (get and remove first)
+const nextTrack = queue.tracks.dispatch();
+```
+
+## Advanced Patterns
+
+### Priority Queue System
+
+```typescript
+// Add VIP user's track to front
+if (isVIPUser(interaction.user)) {
+  queue.prepend(track);
+} else {
+  queue.addTrack(track);
+}
+```
+
+### Smart Queue Management
+
+```typescript
+// Limit user's tracks in queue
+const userTracks = queue.tracks.store.filter(
+  t => t.requestedBy?.id === interaction.user.id
+);
+
+if (userTracks.length >= 5) {
+  await interaction.reply('You already have 5 tracks in queue!');
+  return;
+}
+
+queue.addTrack(track);
+```
+
+### Queue Pagination
+
+```typescript
+const PAGE_SIZE = 10;
+
+function getQueuePage(page: number) {
+  const start = page * PAGE_SIZE;
+  const tracks = queue.tracks.store.slice(start, start + PAGE_SIZE);
+  
+  return tracks.map((track, idx) => 
+    `${start + idx + 1}. ${track.title} - ${track.author}`
+  ).join('\n');
+}
+```
+
+### Duplicate Prevention
+
+```typescript
+// Check if track already in queue
+const isDuplicate = queue.tracks.store.some(
+  t => t.url === track.url
+);
+
+if (isDuplicate) {
+  await interaction.reply('This track is already in the queue!');
+  return;
+}
+
+queue.addTrack(track);
+```
+
+### Queue Filters
+
+```typescript
+// Remove all tracks by specific user
+const removed = [];
+while (queue.tracks.store.length > 0) {
+  const track = queue.tracks.store[0];
+  if (track.requestedBy?.id === userId) {
+    queue.removeTrack(track);
+    removed.push(track);
+  } else {
+    break;
+  }
+}
+```
+
+## Queue Events
+
+```typescript
+import { GuildQueueEvent } from 'discord-player';
+
+// Track added
+player.events.on(GuildQueueEvent.AudioTrackAdd, (queue, track) => {
+  console.log(`Added: ${track.title}`);
+});
+
+// Multiple tracks added
+player.events.on(GuildQueueEvent.AudioTracksAdd, (queue, tracks) => {
+  console.log(`Added ${tracks.length} tracks`);
+});
+
+// Track removed
+player.events.on(GuildQueueEvent.AudioTrackRemove, (queue, track) => {
+  console.log(`Removed: ${track.title}`);
+});
+
+// Multiple tracks removed
+player.events.on(GuildQueueEvent.AudioTracksRemove, (queue, tracks) => {
+  console.log(`Removed ${tracks.length} tracks`);
+});
+
+// Queue created
+player.events.on(GuildQueueEvent.QueueCreate, (queue) => {
+  console.log(`Queue created for ${queue.guild.name}`);
+});
+
+// Queue deleted
+player.events.on(GuildQueueEvent.QueueDelete, (queue) => {
+  console.log(`Queue deleted for ${queue.guild.name}`);
+});
+
+// Queue empty
+player.events.on(GuildQueueEvent.EmptyQueue, (queue) => {
+  console.log('No more tracks in queue');
+});
+```
+
+## Queue Metadata
+
+Store custom data with your queue:
+
+```typescript
+// Set metadata during creation
+const queue = player.nodes.create(interaction.guild, {
+  metadata: {
+    channel: interaction.channel,
+    requestedBy: interaction.user,
+    volume: 50,
+    textChannelId: interaction.channel.id,
+  },
+});
+
+// Access metadata
+const channel = queue.metadata.channel;
+
+// Update metadata
+queue.setMetadata({
+  ...queue.metadata,
+  volume: 75,
+});
+// or
+queue.metadata = newMetadata;
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Queue Capacity Checks">
+    Always check `queue.isFull()` or `queue.getCapacity()` before adding tracks to prevent errors.
+  </Accordion>
+  
+  <Accordion title="Set Reasonable Limits">
+    Use `maxSize` and `maxHistorySize` to prevent memory issues on busy bots.
+  </Accordion>
+  
+  <Accordion title="Store Metadata">
+    Use queue metadata to store command channels, settings, and other context.
+  </Accordion>
+  
+  <Accordion title="Clean Up Old Queues">
+    Implement a system to delete inactive queues after a timeout period.
+  </Accordion>
+</AccordionGroup>

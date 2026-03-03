@@ -1,0 +1,581 @@
+---
+title: ExtractorExecutionContext
+description: API reference for the ExtractorExecutionContext class
+icon: gears
+---
+
+## ExtractorExecutionContext
+
+Manages the lifecycle and execution of extractors. Handles registration, activation, deactivation, and orchestrates extractor execution.
+
+### Constructor
+
+```typescript
+new ExtractorExecutionContext(player: Player)
+```
+
+<ParamField path="player" type="Player" required>
+  The player instance managing this context
+</ParamField>
+
+### Properties
+
+<ResponseField name="player" type="Player">
+  Reference to the parent player instance
+</ResponseField>
+
+<ResponseField name="store" type="Collection<string, BaseExtractor>">
+  Collection storing all registered extractors by their identifier
+</ResponseField>
+
+<ResponseField name="context" type="Context<ExtractorSession>">
+  Execution context for tracking extractor sessions
+</ResponseField>
+
+<ResponseField name="size" type="number">
+  Number of registered extractors
+</ResponseField>
+
+### Methods
+
+#### register
+
+Register and activate a single extractor.
+
+```typescript
+async register<O extends object, T extends typeof BaseExtractor<O>>(
+  _extractor: T,
+  options: ConstructorParameters<T>['1']
+): Promise<InstanceType<T> | null>
+```
+
+<ParamField path="_extractor" type="typeof BaseExtractor" required>
+  The extractor class to register
+</ParamField>
+
+<ParamField path="options" type="object" required>
+  Options to pass to the extractor constructor
+</ParamField>
+
+<ResponseField name="return" type="Promise<InstanceType<T> | null>">
+  The registered extractor instance, or `null` if registration failed
+</ResponseField>
+
+**Example:**
+```typescript
+import { MyExtractor } from './extractors/MyExtractor';
+
+const extractor = await player.extractors.register(MyExtractor, {
+  apiKey: 'your-api-key',
+  timeout: 5000
+});
+
+if (extractor) {
+  console.log('Extractor registered successfully');
+}
+```
+
+#### unregister
+
+Unregister and deactivate a single extractor.
+
+```typescript
+async unregister<K extends string | BaseExtractor>(_extractor: K): Promise<void>
+```
+
+<ParamField path="_extractor" type="string | BaseExtractor" required>
+  The extractor identifier or instance to unregister
+</ParamField>
+
+**Example:**
+```typescript
+// Unregister by identifier
+await player.extractors.unregister('com.example.my-extractor');
+
+// Unregister by instance
+await player.extractors.unregister(myExtractor);
+```
+
+#### unregisterAll
+
+Unregister all extractors.
+
+```typescript
+async unregisterAll(): Promise<void>
+```
+
+**Example:**
+```typescript
+await player.extractors.unregisterAll();
+console.log('All extractors unregistered');
+```
+
+#### loadMulti
+
+Load multiple extractors at once from a bundle.
+
+```typescript
+async loadMulti<
+  O extends object,
+  T extends (typeof BaseExtractor<O>)[],
+  R extends Record<T[number]['identifier'], ConstructorParameters<T[number]>[1]>
+>(
+  bundle: T,
+  options?: R
+): Promise<{ success: boolean; error: null }>
+```
+
+<ParamField path="bundle" type="(typeof BaseExtractor)[]" required>
+  Array of extractor classes to register
+</ParamField>
+
+<ParamField path="options" type="Record<string, object>">
+  Object mapping extractor identifiers to their options
+</ParamField>
+
+<ResponseField name="return" type="Promise<{ success: boolean; error: null }>">
+  Success indicator object
+</ResponseField>
+
+**Example:**
+```typescript
+import { DefaultExtractors } from '@discord-player/extractor';
+
+// Load all default extractors
+await player.extractors.loadMulti(DefaultExtractors);
+
+// Load with specific options
+await player.extractors.loadMulti(DefaultExtractors, {
+  'com.discord-player.youtubeextractor': {
+    authentication: 'your-token'
+  },
+  'com.discord-player.spotifyextractor': {
+    clientId: 'your-client-id',
+    clientSecret: 'your-client-secret'
+  }
+});
+```
+
+#### get
+
+Get a registered extractor by identifier.
+
+```typescript
+get(identifier: string): BaseExtractor | undefined
+```
+
+<ParamField path="identifier" type="string" required>
+  The extractor identifier
+</ParamField>
+
+<ResponseField name="return" type="BaseExtractor | undefined">
+  The extractor instance if found
+</ResponseField>
+
+**Example:**
+```typescript
+const youtubeExtractor = player.extractors.get('com.discord-player.youtubeextractor');
+
+if (youtubeExtractor) {
+  console.log('YouTube extractor is registered');
+}
+```
+
+#### isRegistered
+
+Check if an extractor is registered.
+
+```typescript
+isRegistered(identifier: string): boolean
+```
+
+<ParamField path="identifier" type="string" required>
+  The extractor identifier to check
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  `true` if registered, `false` otherwise
+</ResponseField>
+
+**Example:**
+```typescript
+if (player.extractors.isRegistered('com.example.my-extractor')) {
+  console.log('MyExtractor is active');
+}
+```
+
+#### isDisabled
+
+Check if an extractor is disabled via player options.
+
+```typescript
+isDisabled(identifier: string): boolean
+```
+
+<ParamField path="identifier" type="string" required>
+  The extractor identifier to check
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  `true` if disabled, `false` otherwise
+</ResponseField>
+
+**Example:**
+```typescript
+if (player.extractors.isDisabled('com.discord-player.youtubeextractor')) {
+  console.log('YouTube extractor is blocked');
+}
+```
+
+#### isEnabled
+
+Check if an extractor is enabled.
+
+```typescript
+isEnabled(identifier: string): boolean
+```
+
+<ParamField path="identifier" type="string" required>
+  The extractor identifier to check
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  `true` if enabled, `false` otherwise
+</ResponseField>
+
+**Example:**
+```typescript
+if (player.extractors.isEnabled('com.discord-player.spotifyextractor')) {
+  console.log('Spotify extractor is available');
+}
+```
+
+#### run
+
+Execute a function across all registered extractors by priority.
+
+```typescript
+async run<T = unknown>(
+  fn: ExtractorExecutionFN<T>,
+  filterBlocked?: boolean
+): Promise<ExtractorExecutionResult<T> | undefined>
+```
+
+<ParamField path="fn" type="ExtractorExecutionFN<T>" required>
+  Function to execute for each extractor: `(extractor: BaseExtractor) => Promise<T | boolean>`
+</ParamField>
+
+<ParamField path="filterBlocked" type="boolean" default={true}>
+  Whether to skip blocked extractors
+</ParamField>
+
+<ResponseField name="return" type="Promise<ExtractorExecutionResult<T> | undefined>">
+  Result object containing:
+  - `extractor`: The extractor that succeeded
+  - `error`: Error if all failed
+  - `result`: The result value
+</ResponseField>
+
+**Example:**
+```typescript
+// Search across all extractors
+const result = await player.extractors.run(async (extractor) => {
+  const canHandle = await extractor.validate(query);
+  if (!canHandle) return false;
+  
+  return await extractor.handle(query, context);
+});
+
+if (result?.result) {
+  console.log('Found tracks:', result.result.tracks);
+  console.log('Using extractor:', result.extractor.identifier);
+}
+```
+
+#### requestBridge
+
+Request a bridge for streaming a track from a different extractor.
+
+```typescript
+async requestBridge(
+  track: Track,
+  sourceExtractor?: BaseExtractor | null
+): Promise<ExtractorExecutionResult<ExtractorStreamable>>
+```
+
+<ParamField path="track" type="Track" required>
+  The track to request bridge for
+</ParamField>
+
+<ParamField path="sourceExtractor" type="BaseExtractor | null">
+  The original extractor that found the track. Defaults to `track.extractor`
+</ParamField>
+
+<ResponseField name="return" type="Promise<ExtractorExecutionResult<ExtractorStreamable>>">
+  Result containing the bridged stream and extractor used
+</ResponseField>
+
+**Example:**
+```typescript
+try {
+  const bridge = await player.extractors.requestBridge(track);
+  console.log('Bridge successful via:', bridge.extractor.identifier);
+  // Use bridge.result as the stream
+} catch (error) {
+  console.error('Bridge failed:', error);
+}
+```
+
+#### requestBridgeFrom
+
+Request a bridge from a specific extractor.
+
+```typescript
+async requestBridgeFrom(
+  track: Track,
+  sourceExtractor: BaseExtractor | null,
+  targetExtractor: ExtractorResolvable
+): Promise<ExtractorStreamable | null>
+```
+
+<ParamField path="track" type="Track" required>
+  The track to bridge
+</ParamField>
+
+<ParamField path="sourceExtractor" type="BaseExtractor | null" required>
+  The original extractor
+</ParamField>
+
+<ParamField path="targetExtractor" type="ExtractorResolvable" required>
+  The extractor identifier or instance to bridge to
+</ParamField>
+
+<ResponseField name="return" type="Promise<ExtractorStreamable | null>">
+  The bridged stream or `null` if bridging failed
+</ResponseField>
+
+**Example:**
+```typescript
+const stream = await player.extractors.requestBridgeFrom(
+  track,
+  spotifyExtractor,
+  'com.discord-player.youtubeextractor'
+);
+
+if (stream) {
+  console.log('Successfully bridged to YouTube');
+}
+```
+
+#### getExecutionId
+
+Get the current execution context ID.
+
+```typescript
+getExecutionId(): string | null
+```
+
+<ResponseField name="return" type="string | null">
+  The execution ID or `null` if not in an execution context
+</ResponseField>
+
+**Example:**
+```typescript
+const executionId = player.extractors.getExecutionId();
+console.log('Current execution:', executionId);
+```
+
+#### getContext
+
+Get the current execution context.
+
+```typescript
+getContext(): ExtractorSession | null
+```
+
+<ResponseField name="return" type="ExtractorSession | null">
+  The execution context containing:
+  - `id`: Execution ID
+  - `attemptedExtractors`: Set of extractor identifiers attempted
+  - `bridgeAttemptedExtractors`: Set of bridge extractors attempted
+</ResponseField>
+
+**Example:**
+```typescript
+const context = player.extractors.getContext();
+if (context) {
+  console.log('Attempted extractors:', context.attemptedExtractors);
+}
+```
+
+#### resolve
+
+Resolve an extractor from identifier or instance.
+
+```typescript
+resolve(resolvable: ExtractorResolvable): BaseExtractor | undefined
+```
+
+<ParamField path="resolvable" type="string | BaseExtractor" required>
+  Extractor identifier or instance
+</ParamField>
+
+<ResponseField name="return" type="BaseExtractor | undefined">
+  The resolved extractor instance
+</ResponseField>
+
+**Example:**
+```typescript
+const extractor = player.extractors.resolve('com.discord-player.youtubeextractor');
+const same = player.extractors.resolve(extractor); // Returns same instance
+```
+
+#### resolveId
+
+Resolve an extractor identifier from identifier or instance.
+
+```typescript
+resolveId(resolvable: ExtractorResolvable): string
+```
+
+<ParamField path="resolvable" type="string | BaseExtractor" required>
+  Extractor identifier or instance
+</ParamField>
+
+<ResponseField name="return" type="string">
+  The extractor identifier
+</ResponseField>
+
+**Example:**
+```typescript
+const id = player.extractors.resolveId(myExtractor);
+console.log('Extractor ID:', id);
+```
+
+### Events
+
+<ResponseField name="registered" type="(context: ExtractorExecutionContext, extractor: BaseExtractor) => unknown">
+  Emitted when an extractor is registered
+</ResponseField>
+
+<ResponseField name="unregistered" type="(context: ExtractorExecutionContext, extractor: BaseExtractor) => unknown">
+  Emitted when an extractor is unregistered
+</ResponseField>
+
+<ResponseField name="activate" type="(context: ExtractorExecutionContext, extractor: BaseExtractor) => unknown">
+  Emitted when an extractor is activated
+</ResponseField>
+
+<ResponseField name="deactivate" type="(context: ExtractorExecutionContext, extractor: BaseExtractor) => unknown">
+  Emitted when an extractor is deactivated
+</ResponseField>
+
+<ResponseField name="error" type="(context: ExtractorExecutionContext, extractor: BaseExtractor, error: Error) => unknown">
+  Emitted when an extractor fails to activate/deactivate
+</ResponseField>
+
+**Example:**
+```typescript
+player.extractors.on('registered', (context, extractor) => {
+  console.log(`Registered: ${extractor.identifier}`);
+});
+
+player.extractors.on('error', (context, extractor, error) => {
+  console.error(`Extractor error in ${extractor.identifier}:`, error);
+});
+```
+
+## Types
+
+### ExtractorExecutionResult
+
+Result from extractor execution.
+
+```typescript
+interface ExtractorExecutionResult<T = unknown> {
+  extractor: BaseExtractor;
+  error: Error | null;
+  result: T;
+}
+```
+
+### ExtractorExecutionFN
+
+Function executed for each extractor.
+
+```typescript
+type ExtractorExecutionFN<T = unknown> = (
+  extractor: BaseExtractor
+) => Promise<T | boolean>;
+```
+
+### ExtractorResolvable
+
+Value that can be resolved to an extractor.
+
+```typescript
+type ExtractorResolvable = string | BaseExtractor;
+```
+
+### ExtractorSession
+
+Execution session context.
+
+```typescript
+interface ExtractorSession {
+  id: string;
+  attemptedExtractors: Set<string>;
+  bridgeAttemptedExtractors: Set<string>;
+}
+```
+
+## Usage Example
+
+```typescript
+import { Player } from 'discord-player';
+import { DefaultExtractors } from '@discord-player/extractor';
+import { MyCustomExtractor } from './MyCustomExtractor';
+
+const player = new Player(client);
+
+// Load default extractors
+await player.extractors.loadMulti(DefaultExtractors, {
+  'com.discord-player.youtubeextractor': {
+    authentication: process.env.YOUTUBE_TOKEN
+  }
+});
+
+// Register custom extractor
+await player.extractors.register(MyCustomExtractor, {
+  apiKey: process.env.CUSTOM_API_KEY
+});
+
+// Listen to events
+player.extractors.on('registered', (ctx, ext) => {
+  console.log(`✅ ${ext.identifier} registered`);
+});
+
+player.extractors.on('error', (ctx, ext, error) => {
+  console.error(`❌ ${ext.identifier} error:`, error);
+});
+
+// Check registered extractors
+console.log(`Registered extractors: ${player.extractors.size}`);
+
+// Get specific extractor
+const youtube = player.extractors.get('com.discord-player.youtubeextractor');
+if (youtube) {
+  console.log('YouTube priority:', youtube.priority);
+}
+
+// Disable an extractor
+if (player.extractors.isEnabled('com.discord-player.soundcloudextractor')) {
+  await player.extractors.unregister('com.discord-player.soundcloudextractor');
+}
+```
+
+## Related
+
+- [BaseExtractor](/api/base-extractor) - Base extractor class
+- [Player](/api/player) - Main player class
+- [Track](/api/track) - Track class

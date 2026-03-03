@@ -1,0 +1,733 @@
+---
+title: GuildQueuePlayerNode
+description: The player node class for managing playback operations in a guild queue
+icon: play
+---
+
+## Overview
+
+The `GuildQueuePlayerNode` class manages all playback operations for a guild queue, including playing, pausing, seeking, volume control, and track manipulation. It is accessible via `queue.node`.
+
+## Constructor
+
+```typescript
+new GuildQueuePlayerNode<Meta = any>(queue: GuildQueue<Meta>)
+```
+
+<ParamField path="queue" type="GuildQueue<Meta>" required>
+  The guild queue instance that owns this player node
+</ParamField>
+
+## Properties
+
+<ResponseField name="queue" type="GuildQueue<Meta>">
+  The guild queue instance associated with this player node
+</ResponseField>
+
+<ResponseField name="tasksQueue" type="AsyncQueue">
+  Internal async queue for managing sequential tasks
+</ResponseField>
+
+<ResponseField name="streamTime" type="number">
+  The stream time for the current playback session in milliseconds
+</ResponseField>
+
+<ResponseField name="playbackTime" type="number">
+  Current playback duration with history included in milliseconds
+</ResponseField>
+
+<ResponseField name="estimatedPlaybackTime" type="number">
+  Estimated progress of the player adjusted for filters in milliseconds
+</ResponseField>
+
+<ResponseField name="estimatedDuration" type="number">
+  Estimated total duration of the current track adjusted for filters in milliseconds
+</ResponseField>
+
+<ResponseField name="totalDuration" type="number">
+  Total duration of the current audio track in milliseconds
+</ResponseField>
+
+<ResponseField name="volume" type="number">
+  Current volume level (0-100)
+</ResponseField>
+
+## Playback State Methods
+
+### isIdle()
+
+Checks if the player is currently in idle mode.
+
+```typescript
+node.isIdle(): boolean
+```
+
+<ResponseField name="returns" type="boolean">
+  `true` if the player is idle, `false` otherwise
+</ResponseField>
+
+### isBuffering()
+
+Checks if the player is currently buffering the track.
+
+```typescript
+node.isBuffering(): boolean
+```
+
+<ResponseField name="returns" type="boolean">
+  `true` if the player is buffering, `false` otherwise
+</ResponseField>
+
+### isPlaying()
+
+Checks if the player is currently playing a track.
+
+```typescript
+node.isPlaying(): boolean
+```
+
+<ResponseField name="returns" type="boolean">
+  `true` if the player is playing, `false` otherwise
+</ResponseField>
+
+### isPaused()
+
+Checks if the player is currently paused.
+
+```typescript
+node.isPaused(): boolean
+```
+
+<ResponseField name="returns" type="boolean">
+  `true` if the player is paused, `false` otherwise
+</ResponseField>
+
+## Playback Control Methods
+
+### play()
+
+Plays the given track or the next track in the queue.
+
+```typescript
+async play(res?: Track | null, options?: ResourcePlayOptions): Promise<void>
+```
+
+<ParamField path="res" type="Track | null" optional>
+  The track to play. If not provided, plays the next track from the queue
+</ParamField>
+
+<ParamField path="options" type="ResourcePlayOptions" optional>
+  Play options
+  
+  <Expandable title="ResourcePlayOptions properties">
+    <ResponseField name="queue" type="boolean">
+      If `true`, adds the track to queue instead of playing immediately. Default: `true` if current track exists
+    </ResponseField>
+    
+    <ResponseField name="seek" type="number">
+      The position in milliseconds to seek to. Default: `0`
+    </ResponseField>
+    
+    <ResponseField name="transitionMode" type="boolean">
+      If `true`, enables transition mode for smooth track changes. Default: `false`
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+**Example:**
+
+```typescript
+// Play next track in queue
+await queue.node.play();
+
+// Play a specific track immediately
+await queue.node.play(track, { queue: false });
+
+// Play from 30 seconds
+await queue.node.play(track, { seek: 30000 });
+```
+
+### pause()
+
+Pauses the playback.
+
+```typescript
+node.pause(): boolean
+```
+
+<ResponseField name="returns" type="boolean">
+  `true` if paused successfully, `false` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+if (queue.node.pause()) {
+  await interaction.reply('Paused the player!');
+}
+```
+
+### resume()
+
+Resumes the playback.
+
+```typescript
+node.resume(): boolean
+```
+
+<ResponseField name="returns" type="boolean">
+  `true` if resumed successfully, `false` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+if (queue.node.resume()) {
+  await interaction.reply('Resumed the player!');
+}
+```
+
+### setPaused()
+
+Sets the paused state.
+
+```typescript
+node.setPaused(state: boolean): boolean
+```
+
+<ParamField path="state" type="boolean" required>
+  `true` to pause, `false` to resume
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  `true` if state changed successfully, `false` otherwise
+</ResponseField>
+
+### skip()
+
+Skips the current track.
+
+```typescript
+node.skip(options?: SkipOptions): boolean
+```
+
+<ParamField path="options" type="SkipOptions" optional>
+  Skip options
+  
+  <Expandable title="SkipOptions properties">
+    <ResponseField name="reason" type="TrackSkipReason">
+      The reason for skipping the track
+    </ResponseField>
+    
+    <ResponseField name="description" type="string">
+      Description of why the track was skipped
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  `true` if skipped successfully, `false` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+if (queue.node.skip()) {
+  await interaction.reply('Skipped to next track!');
+}
+```
+
+### stop()
+
+Stops the playback and clears the queue.
+
+```typescript
+node.stop(force?: boolean): boolean
+```
+
+<ParamField path="force" type="boolean" default="false">
+  If `true`, forcefully stops playback and destroys the dispatcher
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  `true` if stopped successfully, `false` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+queue.node.stop();
+await interaction.reply('Stopped playback and cleared the queue!');
+```
+
+### seek()
+
+Seeks to a specific position in the current track.
+
+```typescript
+async seek(duration: number): Promise<boolean>
+```
+
+<ParamField path="duration" type="number" required>
+  The position to seek to in milliseconds
+</ParamField>
+
+<ResponseField name="returns" type="Promise<boolean>">
+  `true` if seek was successful, `false` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+// Seek to 1 minute 30 seconds
+const seeked = await queue.node.seek(90000);
+if (seeked) {
+  await interaction.reply('Seeked to 1:30!');
+}
+```
+
+## Volume Control Methods
+
+### setVolume()
+
+Sets the volume level.
+
+```typescript
+node.setVolume(vol: number): boolean
+```
+
+<ParamField path="vol" type="number" required>
+  Volume level (0-100+). Values over 100 are allowed but may cause distortion
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  `true` if volume changed successfully, `false` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+queue.node.setVolume(50);
+await interaction.reply('Volume set to 50%');
+```
+
+### setBitrate()
+
+Sets the bitrate for audio encoding.
+
+```typescript
+node.setBitrate(rate: number | 'auto'): void
+```
+
+<ParamField path="rate" type="number | 'auto'" required>
+  Bitrate in bits per second, or `'auto'` to use the voice channel's bitrate
+</ParamField>
+
+**Example:**
+
+```typescript
+// Use channel's bitrate
+queue.node.setBitrate('auto');
+
+// Set to 128kbps
+queue.node.setBitrate(128000);
+```
+
+## Track Management Methods
+
+### insert()
+
+Inserts a track at a specific position in the queue.
+
+```typescript
+node.insert(track: Track, index?: number): void
+```
+
+<ParamField path="track" type="Track" required>
+  The track to insert
+</ParamField>
+
+<ParamField path="index" type="number" default="0">
+  The position to insert at (0 = next track)
+</ParamField>
+
+**Example:**
+
+```typescript
+// Insert track as next
+queue.node.insert(track);
+
+// Insert track at position 5
+queue.node.insert(track, 5);
+```
+
+### remove()
+
+Removes a track from the queue.
+
+```typescript
+node.remove(track: TrackResolvable, emitEvent?: boolean): Track | null
+```
+
+<ParamField path="track" type="TrackResolvable" required>
+  The track to remove (can be Track instance, track ID string, or index number)
+</ParamField>
+
+<ParamField path="emitEvent" type="boolean" default="true">
+  Whether to emit the `audioTrackRemove` event
+</ParamField>
+
+<ResponseField name="returns" type="Track | null">
+  The removed track, or `null` if not found
+</ResponseField>
+
+**Example:**
+
+```typescript
+// Remove by index
+const removed = queue.node.remove(0);
+
+// Remove by track ID
+queue.node.remove(track.id);
+
+// Remove by track instance
+queue.node.remove(track);
+```
+
+### jump()
+
+Jumps to a specific track without removing other tracks.
+
+```typescript
+node.jump(track: TrackResolvable): boolean
+```
+
+<ParamField path="track" type="TrackResolvable" required>
+  The track to jump to
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  `true` if jumped successfully, `false` if track not found
+</ResponseField>
+
+**Example:**
+
+```typescript
+// Jump to track at index 5
+if (queue.node.jump(5)) {
+  await interaction.reply('Jumped to track 6!');
+}
+```
+
+### skipTo()
+
+Skips to a specific track, removing all tracks before it.
+
+```typescript
+node.skipTo(track: TrackResolvable): boolean
+```
+
+<ParamField path="track" type="TrackResolvable" required>
+  The track to skip to
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  `true` if skipped successfully, `false` if track not found
+</ResponseField>
+
+**Example:**
+
+```typescript
+// Skip to track at index 5, removing tracks 0-4
+if (queue.node.skipTo(5)) {
+  await interaction.reply('Skipped to track 6!');
+}
+```
+
+### move()
+
+Moves a track from one position to another.
+
+```typescript
+node.move(from: TrackResolvable, to: number): void
+```
+
+<ParamField path="from" type="TrackResolvable" required>
+  The track to move
+</ParamField>
+
+<ParamField path="to" type="number" required>
+  The destination position
+</ParamField>
+
+**Example:**
+
+```typescript
+// Move track from position 5 to position 0 (next)
+queue.node.move(5, 0);
+```
+
+### copy()
+
+Copies a track to another position in the queue.
+
+```typescript
+node.copy(from: TrackResolvable, to: number): void
+```
+
+<ParamField path="from" type="TrackResolvable" required>
+  The track to copy
+</ParamField>
+
+<ParamField path="to" type="number" required>
+  The position to copy to
+</ParamField>
+
+**Example:**
+
+```typescript
+// Copy track from position 0 to position 5
+queue.node.copy(0, 5);
+```
+
+### swap()
+
+Swaps two tracks in the queue.
+
+```typescript
+node.swap(first: TrackResolvable, second: TrackResolvable): void
+```
+
+<ParamField path="first" type="TrackResolvable" required>
+  The first track to swap
+</ParamField>
+
+<ParamField path="second" type="TrackResolvable" required>
+  The second track to swap
+</ParamField>
+
+**Example:**
+
+```typescript
+// Swap tracks at positions 0 and 5
+queue.node.swap(0, 5);
+```
+
+### getTrackPosition()
+
+Gets the position of a track in the queue.
+
+```typescript
+node.getTrackPosition(track: TrackResolvable): number
+```
+
+<ParamField path="track" type="TrackResolvable" required>
+  The track to find
+</ParamField>
+
+<ResponseField name="returns" type="number">
+  The index of the track, or `-1` if not found
+</ResponseField>
+
+**Example:**
+
+```typescript
+const position = queue.node.getTrackPosition(track);
+console.log(`Track is at position ${position + 1}`);
+```
+
+## Progress Methods
+
+### getTimestamp()
+
+Gets the current playback timestamp information.
+
+```typescript
+node.getTimestamp(ignoreFilters?: boolean): PlayerTimestamp | null
+```
+
+<ParamField path="ignoreFilters" type="boolean" default="false">
+  If `true`, returns raw timestamps without filter adjustments
+</ParamField>
+
+<ResponseField name="returns" type="PlayerTimestamp | null">
+  Timestamp object or `null` if no track is playing
+  
+  <Expandable title="PlayerTimestamp properties">
+    <ResponseField name="current" type="object">
+      Current playback position
+      
+      <Expandable title="properties">
+        <ResponseField name="label" type="string">
+          Formatted time string (e.g., "1:30")
+        </ResponseField>
+        
+        <ResponseField name="value" type="number">
+          Time in milliseconds
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="total" type="object">
+      Total track duration
+      
+      <Expandable title="properties">
+        <ResponseField name="label" type="string">
+          Formatted time string (e.g., "3:45")
+        </ResponseField>
+        
+        <ResponseField name="value" type="number">
+          Duration in milliseconds
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="progress" type="number">
+      Progress percentage (0-100)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+const timestamp = queue.node.getTimestamp();
+if (timestamp) {
+  console.log(`${timestamp.current.label} / ${timestamp.total.label}`);
+  console.log(`Progress: ${timestamp.progress}%`);
+}
+```
+
+### createProgressBar()
+
+Creates a visual progress bar for the current track.
+
+```typescript
+node.createProgressBar(options?: PlayerProgressbarOptions): string | null
+```
+
+<ParamField path="options" type="PlayerProgressbarOptions" optional>
+  Progress bar customization options
+  
+  <Expandable title="PlayerProgressbarOptions properties">
+    <ResponseField name="length" type="number" default="15">
+      The length of the progress bar in characters
+    </ResponseField>
+    
+    <ResponseField name="timecodes" type="boolean" default="true">
+      Whether to show time codes
+    </ResponseField>
+    
+    <ResponseField name="indicator" type="string" default="🔘">
+      The character for the current position indicator
+    </ResponseField>
+    
+    <ResponseField name="leftChar" type="string" default="▬">
+      The character for elapsed time
+    </ResponseField>
+    
+    <ResponseField name="rightChar" type="string" default="▬">
+      The character for remaining time
+    </ResponseField>
+    
+    <ResponseField name="separator" type="string" default="┃">
+      The separator between timecode and bar
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="returns" type="string | null">
+  The formatted progress bar string, or `null` if no track is playing
+</ResponseField>
+
+**Example:**
+
+```typescript
+const progressBar = queue.node.createProgressBar();
+console.log(progressBar);
+// Output: 1:30 ┃ ▬▬▬▬▬🔘▬▬▬▬▬▬▬▬▬ ┃ 3:45
+
+// Custom progress bar
+const customBar = queue.node.createProgressBar({
+  length: 20,
+  indicator: '🎵',
+  leftChar: '━',
+  rightChar: '─'
+});
+```
+
+### resetProgress()
+
+Resets the progress history.
+
+```typescript
+node.resetProgress(): void
+```
+
+### setProgress()
+
+Manually sets the player progress.
+
+```typescript
+node.setProgress(progress: number): void
+```
+
+<ParamField path="progress" type="number" required>
+  The progress value in milliseconds
+</ParamField>
+
+### getDurationMultiplier()
+
+Gets the duration multiplier based on active filters.
+
+```typescript
+node.getDurationMultiplier(): number
+```
+
+<ResponseField name="returns" type="number">
+  The duration multiplier value
+</ResponseField>
+
+## Advanced Methods
+
+### requestSeek()
+
+Requests the source to seek (for seekable streams).
+
+```typescript
+async requestSeek(data: SeekEvent): Promise<boolean>
+```
+
+<ParamField path="data" type="SeekEvent" required>
+  Seek event data containing position information
+</ParamField>
+
+<ResponseField name="returns" type="Promise<boolean>">
+  `true` if seek request was successful, `false` otherwise
+</ResponseField>
+
+## Related Types
+
+### TrackResolvable
+
+```typescript
+type TrackResolvable = Track | string | number
+```
+
+Can be:
+- A `Track` instance
+- A track ID string
+- A queue index number
+
+### TrackSkipReason
+
+```typescript
+enum TrackSkipReason {
+  Manual = 'manual',
+  Jump = 'jump',
+  SkipTo = 'skipTo',
+  HistoryNext = 'historyNext',
+  NoStream = 'noStream',
+  SEEK_OVER_THRESHOLD = 'seekOverThreshold'
+}
+```

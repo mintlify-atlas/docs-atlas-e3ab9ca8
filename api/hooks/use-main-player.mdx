@@ -1,0 +1,149 @@
+---
+title: useMainPlayer
+description: React-style hook to access the main Player instance
+icon: play
+---
+
+## Overview
+
+The `useMainPlayer` hook provides access to the main `Player` instance within command contexts. This is the primary entry point for interacting with Discord Player's core functionality.
+
+## Usage
+
+```typescript
+import { useMainPlayer } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('play')
+    .setDescription('Play a song')
+    .addStringOption(option =>
+      option.setName('query')
+        .setDescription('The song to play')
+        .setRequired(true)
+    ),
+  async execute({ interaction }) {
+    const player = useMainPlayer();
+    const query = interaction.options.getString('query', true);
+    
+    const result = await player.search(query, {
+      requestedBy: interaction.user
+    });
+    
+    if (!result.hasTracks()) {
+      return interaction.reply('No results found!');
+    }
+    
+    await interaction.reply(`Found: ${result.tracks[0].title}`);
+  }
+});
+```
+
+## Signature
+
+```typescript
+function useMainPlayer(): Player
+```
+
+## Return Value
+
+<ResponseField name="player" type="Player" required>
+  The main Player instance with all core functionality including:
+  - `search()` - Search for tracks
+  - `play()` - Play tracks in a voice channel
+  - `queues` - Access to all guild queues
+  - `extractors` - Manage audio extractors
+  - `events` - Player event emitter
+</ResponseField>
+
+## When to Use
+
+Use `useMainPlayer` when you need to:
+
+- Search for tracks before playing
+- Access the global player configuration
+- Manage extractors or plugins
+- Create new queues
+- Access player-level events
+
+## Example: Play Command
+
+```typescript
+import { useMainPlayer } from 'discord-player';
+import { SlashCommandBuilder } from 'discord.js';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('play')
+    .setDescription('Play a song')
+    .addStringOption(option =>
+      option.setName('query')
+        .setDescription('Song name or URL')
+        .setRequired(true)
+    ),
+  async execute({ interaction }) {
+    const player = useMainPlayer();
+    const channel = interaction.member.voice.channel;
+    
+    if (!channel) {
+      return interaction.reply('You need to be in a voice channel!');
+    }
+    
+    const query = interaction.options.getString('query', true);
+    
+    await interaction.deferReply();
+    
+    const { track } = await player.play(channel, query, {
+      nodeOptions: {
+        metadata: interaction
+      }
+    });
+    
+    return interaction.followUp(`Now playing: **${track.title}**`);
+  }
+});
+```
+
+## Example: Search Command
+
+```typescript
+import { useMainPlayer } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('search')
+    .setDescription('Search for songs')
+    .addStringOption(option =>
+      option.setName('query')
+        .setDescription('Search query')
+        .setRequired(true)
+    ),
+  async execute({ interaction }) {
+    const player = useMainPlayer();
+    const query = interaction.options.getString('query', true);
+    
+    await interaction.deferReply();
+    
+    const results = await player.search(query, {
+      requestedBy: interaction.user
+    });
+    
+    if (!results.hasTracks()) {
+      return interaction.followUp('No results found!');
+    }
+    
+    const tracks = results.tracks.slice(0, 5);
+    const list = tracks.map((track, i) => 
+      `${i + 1}. **${track.title}** by ${track.author}`
+    ).join('\n');
+    
+    return interaction.followUp(`Search results:\n${list}`);
+  }
+});
+```
+
+## Related Hooks
+
+- [useQueue](/api/hooks/use-queue) - Access guild queue
+- [useTimeline](/api/hooks/use-timeline) - Control playback
+- [useHistory](/api/hooks/use-history) - Access queue history

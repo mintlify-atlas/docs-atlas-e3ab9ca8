@@ -1,0 +1,415 @@
+---
+title: VoiceUtils
+description: Voice connection management utilities
+icon: microphone
+---
+
+## Overview
+
+The `VoiceUtils` class provides utilities for managing voice connections, joining voice channels, and creating stream dispatchers. It's the core interface for voice connectivity in Discord Player.
+
+## Constructor
+
+```typescript
+new VoiceUtils(player: Player)
+```
+
+<ParamField path="player" type="Player" required>
+  The Discord Player instance
+</ParamField>
+
+<Info>
+VoiceUtils is automatically instantiated by the Player. Access it via `player.voiceUtils`.
+</Info>
+
+---
+
+## Properties
+
+### player
+
+The Discord Player instance.
+
+```typescript
+voiceUtils.player: Player
+```
+
+---
+
+### cache
+
+<Warning>
+This property is deprecated and will be removed in a future version. It only exists for compatibility reasons.
+</Warning>
+
+Voice connection cache storing stream dispatchers.
+
+```typescript
+voiceUtils.cache: Collection<Snowflake, StreamDispatcher>
+```
+
+---
+
+## Methods
+
+### connect()
+
+Joins a voice channel and creates a stream dispatcher for audio playback.
+
+```typescript
+await voiceUtils.connect(
+  channel: VoiceChannel | StageChannel,
+  options?: ConnectOptions
+): Promise<StreamDispatcher>
+```
+
+<ParamField path="channel" type="VoiceChannel | StageChannel" required>
+  The voice or stage channel to join
+</ParamField>
+
+<ParamField path="options" type="ConnectOptions">
+  Connection options
+</ParamField>
+
+<ParamField path="options.queue" type="GuildQueue" required>
+  The guild queue instance
+</ParamField>
+
+<ParamField path="options.deaf" type="boolean" default={false}>
+  Whether the bot should be deafened
+</ParamField>
+
+<ParamField path="options.maxTime" type="number">
+  Maximum connection time in milliseconds
+</ParamField>
+
+<ParamField path="options.audioPlayer" type="AudioPlayer">
+  Custom audio player instance
+</ParamField>
+
+<ParamField path="options.group" type="string">
+  Connection group identifier
+</ParamField>
+
+<ParamField path="options.daveEncryption" type="boolean" default={true}>
+  Enable DAVE E2E encryption
+</ParamField>
+
+<ParamField path="options.decryptionFailureTolerance" type="number" default={24}>
+  Number of consecutive decryption failures before disconnecting
+</ParamField>
+
+<ResponseField name="dispatcher" type="StreamDispatcher">
+  The stream dispatcher for managing audio playback
+</ResponseField>
+
+#### Example
+
+```typescript
+const channel = interaction.member.voice.channel;
+const queue = player.queues.cache.get(interaction.guildId);
+
+const dispatcher = await player.voiceUtils.connect(channel, {
+  queue: queue,
+  deaf: true
+});
+
+console.log('Connected to voice channel');
+```
+
+---
+
+### join()
+
+Joins a voice channel and returns the voice connection (without creating a stream dispatcher).
+
+```typescript
+await voiceUtils.join(
+  channel: VoiceChannel | StageChannel,
+  options?: JoinOptions
+): Promise<VoiceConnection>
+```
+
+<ParamField path="channel" type="VoiceChannel | StageChannel" required>
+  The voice or stage channel to join
+</ParamField>
+
+<ParamField path="options" type="JoinOptions">
+  Join options
+</ParamField>
+
+<ParamField path="options.deaf" type="boolean" default={false}>
+  Whether the bot should be deafened
+</ParamField>
+
+<ParamField path="options.maxTime" type="number">
+  Maximum connection time in milliseconds
+</ParamField>
+
+<ParamField path="options.group" type="string">
+  Connection group identifier
+</ParamField>
+
+<ParamField path="options.daveEncryption" type="boolean" default={true}>
+  Enable DAVE E2E encryption for voice data
+</ParamField>
+
+<ParamField path="options.decryptionFailureTolerance" type="number" default={24}>
+  Number of consecutive decryption failures allowed before automatic disconnect
+</ParamField>
+
+<ResponseField name="connection" type="VoiceConnection">
+  The voice connection instance
+</ResponseField>
+
+#### Example
+
+```typescript
+const channel = interaction.member.voice.channel;
+
+// Join without creating a dispatcher
+const connection = await player.voiceUtils.join(channel, {
+  deaf: true,
+  daveEncryption: true,
+  decryptionFailureTolerance: 50
+});
+
+console.log('Joined voice channel');
+```
+
+<Info>
+If an existing connection to the same channel exists and is not destroyed, it will be reused instead of creating a new connection.
+</Info>
+
+---
+
+### disconnect()
+
+Disconnects from a voice channel.
+
+```typescript
+voiceUtils.disconnect(connection: VoiceConnection | StreamDispatcher): void
+```
+
+<ParamField path="connection" type="VoiceConnection | StreamDispatcher" required>
+  The voice connection or stream dispatcher to disconnect
+</ParamField>
+
+#### Example
+
+```typescript
+const connection = player.voiceUtils.getConnection(guildId);
+
+if (connection) {
+  player.voiceUtils.disconnect(connection);
+  console.log('Disconnected from voice');
+}
+
+// Or disconnect a dispatcher
+const dispatcher = queue.dispatcher;
+if (dispatcher) {
+  player.voiceUtils.disconnect(dispatcher);
+}
+```
+
+<Info>
+If you pass a StreamDispatcher, it will automatically extract and destroy the underlying VoiceConnection.
+</Info>
+
+---
+
+### getConnection()
+
+Retrieves an active voice connection for a guild.
+
+```typescript
+voiceUtils.getConnection(guild: Snowflake, group?: string): VoiceConnection | undefined
+```
+
+<ParamField path="guild" type="Snowflake" required>
+  The guild ID
+</ParamField>
+
+<ParamField path="group" type="string">
+  The connection group identifier (if using groups)
+</ParamField>
+
+<ResponseField name="connection" type="VoiceConnection | undefined">
+  The voice connection if it exists, otherwise undefined
+</ResponseField>
+
+#### Example
+
+```typescript
+const connection = player.voiceUtils.getConnection(interaction.guildId);
+
+if (connection) {
+  console.log(`Connected to channel: ${connection.joinConfig.channelId}`);
+  console.log(`Status: ${connection.state.status}`);
+} else {
+  console.log('Not connected to any voice channel');
+}
+
+// With connection groups
+const groupedConnection = player.voiceUtils.getConnection(
+  interaction.guildId,
+  'music-bot'
+);
+```
+
+---
+
+## Complete Usage Example
+
+```typescript
+import { Player, GuildQueue } from 'discord-player';
+import { VoiceConnectionStatus } from 'discord-voip';
+
+const player = new Player(client);
+
+// Play command handler
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'play') return;
+
+  const channel = interaction.member.voice.channel;
+  if (!channel) {
+    return interaction.reply('You need to be in a voice channel!');
+  }
+
+  const query = interaction.options.getString('song', true);
+
+  // Create or get queue
+  let queue = player.queues.cache.get(interaction.guildId);
+  
+  if (!queue) {
+    queue = player.queues.create(interaction.guildId);
+  }
+
+  // Connect to voice channel
+  try {
+    const dispatcher = await player.voiceUtils.connect(channel, {
+      queue: queue,
+      deaf: true,
+      daveEncryption: true // Enable E2E encryption
+    });
+
+    // Search and play
+    const result = await player.search(query);
+    queue.addTrack(result.tracks[0]);
+    
+    if (!queue.isPlaying()) {
+      await queue.node.play();
+    }
+
+    await interaction.reply(`Now playing: ${result.tracks[0].title}`);
+  } catch (error) {
+    console.error('Failed to connect:', error);
+    await interaction.reply('Could not join voice channel!');
+  }
+});
+
+// Disconnect command
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'disconnect') return;
+
+  const connection = player.voiceUtils.getConnection(interaction.guildId);
+  
+  if (!connection) {
+    return interaction.reply('Not connected to voice!');
+  }
+
+  player.voiceUtils.disconnect(connection);
+  await interaction.reply('Disconnected from voice channel');
+});
+
+// Monitor connection status
+const connection = player.voiceUtils.getConnection(guildId);
+
+if (connection) {
+  connection.on('stateChange', (oldState, newState) => {
+    console.log(`Connection state changed: ${oldState.status} -> ${newState.status}`);
+    
+    if (newState.status === VoiceConnectionStatus.Disconnected) {
+      console.log('Connection lost, attempting to reconnect...');
+    }
+  });
+}
+```
+
+---
+
+## Connection Groups
+
+Connection groups allow you to manage multiple voice connections per guild (useful for multi-instance bots).
+
+```typescript
+// Connect to a specific group
+const dispatcher = await player.voiceUtils.connect(channel, {
+  queue: queue,
+  group: 'music-bot-1'
+});
+
+// Get connection from a specific group
+const connection = player.voiceUtils.getConnection(guildId, 'music-bot-1');
+
+// Each group maintains its own connection
+const secondDispatcher = await player.voiceUtils.connect(otherChannel, {
+  queue: otherQueue,
+  group: 'music-bot-2'
+});
+```
+
+---
+
+## DAVE Encryption
+
+DAVE (Discord Audio/Video E2EE) provides end-to-end encryption for voice data.
+
+```typescript
+// Enable DAVE encryption (default: true)
+const dispatcher = await player.voiceUtils.connect(channel, {
+  queue: queue,
+  daveEncryption: true,
+  decryptionFailureTolerance: 50 // Allow 50 consecutive failures
+});
+```
+
+<ParamField path="daveEncryption" type="boolean" default={true}>
+  When enabled, voice data is end-to-end encrypted
+</ParamField>
+
+<ParamField path="decryptionFailureTolerance" type="number" default={24}>
+  Number of consecutive decryption failures before automatic disconnect. Higher values are more tolerant of network issues but may result in longer periods of garbled audio.
+</ParamField>
+
+---
+
+## Types
+
+### ConnectOptions
+
+```typescript
+interface ConnectOptions {
+  deaf?: boolean;
+  maxTime?: number;
+  queue: GuildQueue;
+  audioPlayer?: AudioPlayer;
+  group?: string;
+  daveEncryption?: boolean;
+  decryptionFailureTolerance?: number;
+}
+```
+
+### JoinOptions
+
+```typescript
+interface JoinOptions {
+  deaf?: boolean;
+  maxTime?: number;
+  group?: string;
+  daveEncryption?: boolean;
+  decryptionFailureTolerance?: number;
+}
+```

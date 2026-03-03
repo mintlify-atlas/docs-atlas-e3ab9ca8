@@ -1,0 +1,470 @@
+---
+title: GuildQueue
+description: Per-guild queue management for music playback
+icon: list
+---
+
+The `GuildQueue` class represents a music queue for a specific guild. Each guild gets its own queue instance that manages tracks, playback, and audio connections.
+
+## Getting a Queue
+
+Access queues through the player's nodes manager:
+
+```typescript
+// Get existing queue
+const queue = player.nodes.get(guildId);
+
+// Create queue if it doesn't exist
+const queue = player.nodes.create(guild, {
+  metadata: { channel: interaction.channel },
+  leaveOnEnd: true,
+  leaveOnEmpty: true
+});
+```
+
+## Queue Properties
+
+### Basic Properties
+
+```typescript
+queue.id              // Guild ID
+queue.guild           // Discord.js Guild object
+queue.channel         // Current voice channel
+queue.connection      // Voice connection
+queue.currentTrack    // Currently playing track
+queue.size            // Number of tracks in queue
+queue.isEmpty()       // Check if queue is empty
+queue.isPlaying()     // Check if currently playing
+```
+
+### Track Management
+
+```typescript
+queue.tracks          // Queue of tracks
+queue.history         // Queue history
+queue.estimatedDuration  // Total duration of queued tracks (ms)
+queue.durationFormatted  // Formatted duration string
+```
+
+## Managing Tracks
+
+### Adding Tracks
+
+```typescript
+// Add a single track
+queue.addTrack(track);
+
+// Add multiple tracks
+queue.addTrack([track1, track2, track3]);
+
+// Add a playlist
+queue.addTrack(playlist);
+```
+
+### Inserting Tracks
+
+```typescript
+// Prepend to start (before index 0)
+queue.prepend(track, 0);
+
+// Append after specific position
+queue.append(track, 2);
+
+// Insert at specific index
+queue.insertTrack(track, 1);
+```
+
+### Removing Tracks
+
+```typescript
+// Remove specific track
+queue.removeTrack(track);
+
+// Clear all tracks
+queue.clear();
+
+// Remove track at index
+queue.tracks.remove(0);
+```
+
+### Track Operations
+
+```typescript
+// Move track to different position
+queue.moveTrack(track, 3);
+
+// Copy track to position
+queue.copyTrack(track, 5);
+
+// Swap two tracks
+queue.swapTracks(track1, track2);
+```
+
+## Playback Control
+
+### Basic Controls
+
+```typescript
+// Play next track
+await queue.node.play();
+
+// Skip current track
+queue.node.skip();
+
+// Pause playback
+queue.node.pause();
+
+// Resume playback
+queue.node.resume();
+
+// Stop and clear queue
+queue.node.stop();
+```
+
+### Volume Control
+
+```typescript
+// Set volume (0-200)
+queue.node.setVolume(50);
+
+// Get current volume
+const volume = queue.node.volume;
+```
+
+### Seeking
+
+```typescript
+// Seek to position (in milliseconds)
+await queue.node.seek(60000); // Seek to 1 minute
+```
+
+## Repeat Modes
+
+Configure how the queue repeats:
+
+```typescript
+import { QueueRepeatMode } from 'discord-player';
+
+// Disable repeat
+queue.setRepeatMode(QueueRepeatMode.OFF);
+
+// Repeat current track
+queue.setRepeatMode(QueueRepeatMode.TRACK);
+
+// Repeat entire queue
+queue.setRepeatMode(QueueRepeatMode.QUEUE);
+
+// Autoplay similar tracks when queue ends
+queue.setRepeatMode(QueueRepeatMode.AUTOPLAY);
+```
+
+## Shuffle Mode
+
+Enable shuffle for random playback:
+
+```typescript
+// Enable dynamic shuffle (doesn't mutate queue)
+queue.enableShuffle(true);
+
+// In-place shuffle (mutates queue)
+queue.enableShuffle(false);
+
+// Disable shuffle
+queue.disableShuffle();
+
+// Toggle shuffle
+queue.toggleShuffle();
+
+// Check shuffle status
+if (queue.isShuffling) {
+  console.log('Shuffle is enabled');
+}
+```
+
+## History
+
+Access previously played tracks:
+
+```typescript
+// Get history
+const history = queue.history;
+
+// Get previous track
+const previousTrack = history.previousTrack;
+
+// Get all history tracks
+const allHistory = history.tracks.store;
+
+// Go back to previous track
+await queue.history.back();
+
+// Clear history
+queue.history.clear();
+```
+
+## Filters
+
+Apply audio filters to enhance playback:
+
+```typescript
+// Apply FFmpeg filters
+await queue.filters.ffmpeg.toggle(['bassboost', 'nightcore']);
+
+// Set equalizer
+await queue.filters.equalizer.setEqualizer([
+  { band: 0, gain: 0.25 },
+  { band: 1, gain: 0.25 }
+]);
+
+// Set volume
+queue.filters.volume?.setVolume(75);
+
+// Apply biquad filter
+await queue.filters.biquad?.enable({
+  type: 'lowpass',
+  frequency: 3000
+});
+```
+
+## Voice Connection
+
+### Connecting
+
+```typescript
+// Connect to voice channel
+await queue.connect(voiceChannel, {
+  deaf: true,
+  timeout: 30000
+});
+```
+
+### Connection Management
+
+```typescript
+// Check connection status
+if (queue.connection) {
+  console.log(`Ping: ${queue.ping}ms`);
+}
+
+// Set self deaf
+await queue.setSelfDeaf(true);
+
+// Set self mute
+await queue.setSelfMute(false);
+```
+
+## Queue Options
+
+Configure queue behavior when creating:
+
+```typescript
+const queue = player.nodes.create(guild, {
+  // Metadata for context
+  metadata: {
+    channel: interaction.channel,
+    requestedBy: interaction.user
+  },
+  
+  // Auto-leave settings
+  leaveOnEnd: true,
+  leaveOnEndCooldown: 300000,    // 5 minutes
+  leaveOnEmpty: true,
+  leaveOnEmptyCooldown: 300000,  // 5 minutes
+  leaveOnStop: false,
+  
+  // Queue limits
+  maxSize: 1000,
+  maxHistorySize: 100,
+  
+  // Audio settings
+  volume: 100,
+  selfDeaf: true,
+  
+  // Filters
+  disableVolume: false,
+  disableEqualizer: false,
+  
+  // Other
+  bufferingTimeout: 3000
+});
+```
+
+## Queue Metadata
+
+Store custom data with the queue:
+
+```typescript
+interface MyMetadata {
+  channel: TextChannel;
+  requestedBy: User;
+}
+
+// Set metadata
+const queue = player.nodes.create<MyMetadata>(guild, {
+  metadata: {
+    channel: interaction.channel,
+    requestedBy: interaction.user
+  }
+});
+
+// Access metadata
+queue.metadata.channel.send('Hello!');
+
+// Update metadata
+queue.setMetadata({
+  channel: newChannel,
+  requestedBy: newUser
+});
+```
+
+## Queue Statistics
+
+Get playback statistics:
+
+```typescript
+const stats = queue.stats.generate();
+console.log(stats);
+// {
+//   history: { size: 5 },
+//   queue: { size: 10 },
+//   isPlaying: true,
+//   isPaused: false,
+//   ...
+// }
+```
+
+## Playing Tracks
+
+Play tracks directly through the queue:
+
+```typescript
+// Play a search query
+await queue.play('Never Gonna Give You Up');
+
+// Play with options
+await queue.play(track, {
+  nodeOptions: {
+    metadata: { channel: interaction.channel }
+  }
+});
+```
+
+## Queue Lifecycle
+
+### Deleting Queues
+
+```typescript
+// Delete the queue
+queue.delete();
+
+// Check if deleted
+if (queue.deleted) {
+  console.log('Queue was deleted');
+}
+```
+
+### Reviving Queues
+
+```typescript
+// Revive a deleted queue
+queue.revive();
+```
+
+## Capacity Management
+
+```typescript
+// Check if queue is full
+if (queue.isFull()) {
+  console.log('Queue is at maximum capacity');
+}
+
+// Get available capacity
+const capacity = queue.getCapacity();
+console.log(`Can add ${capacity} more tracks`);
+
+// Set maximum size
+queue.setMaxSize(500);
+queue.setMaxHistorySize(50);
+```
+
+## Advanced Features
+
+### Stream Callbacks
+
+Customize stream behavior:
+
+```typescript
+queue.onBeforeCreateStream = async (track, queryType, queue) => {
+  // Custom stream logic
+  return null; // or return custom stream
+};
+
+queue.onAfterCreateStream = async (stream, queue, track) => {
+  // Post-process stream
+  return { stream, type: StreamType.Raw };
+};
+
+queue.onStreamExtracted = async (stream, track, queue) => {
+  // Intercept extracted stream
+  return stream;
+};
+```
+
+### Synced Lyrics
+
+Display time-synced lyrics:
+
+```typescript
+const lyrics = await player.lyrics.search({ q: 'Alan Walker Faded' });
+const syncedLyrics = queue.syncedLyrics(lyrics[0]);
+
+// Get lyrics at specific timestamp
+const line = syncedLyrics.at(10000); // 10 seconds
+
+// Subscribe to lyrics changes
+const unsubscribe = syncedLyrics.onChange((lyrics, timestamp) => {
+  console.log(`[${timestamp}ms] ${lyrics}`);
+});
+
+// Unsubscribe
+unsubscribe();
+```
+
+## Example: Complete Queue Usage
+
+```typescript
+import { GuildQueue, QueueRepeatMode } from 'discord-player';
+
+// Create and configure queue
+const queue = player.nodes.create(interaction.guild, {
+  metadata: {
+    channel: interaction.channel,
+    requestedBy: interaction.user
+  },
+  leaveOnEnd: true,
+  leaveOnEmpty: true,
+  volume: 80
+});
+
+// Connect and play
+await queue.connect(interaction.member.voice.channel);
+const { track } = await player.play(interaction.member.voice.channel, query);
+
+// Configure playback
+queue.setRepeatMode(QueueRepeatMode.QUEUE);
+queue.enableShuffle();
+
+// Apply filters
+await queue.filters.ffmpeg.toggle(['bassboost']);
+
+// Control playback
+setTimeout(() => {
+  queue.node.skip();
+}, 30000);
+```
+
+## See Also
+
+- [Player](/core/player) - Learn about the Player class
+- [Track](/core/tracks) - Understanding track objects
+- [Events](/core/events) - Queue event handling

@@ -1,0 +1,407 @@
+---
+title: Eris and Oceanic.js
+description: Use Discord Player with Eris or Oceanic.js instead of discord.js
+icon: plug
+---
+
+## Overview
+
+Discord Player is designed for discord.js but provides compatibility layers for **Eris** and **Oceanic.js** through proxy adapters. These adapters create a compatibility interface that makes Eris/Oceanic clients work seamlessly with Discord Player.
+
+<Warning>
+  The Eris and Oceanic compatibility layers are experimental and create proxy objects to bridge API differences. Some advanced features may not work as expected.
+</Warning>
+
+## Using with Oceanic.js
+
+### Installation
+
+First, install the required packages:
+
+```bash
+npm install discord-player oceanic.js
+```
+
+### Setup
+
+Use the `createOceanicCompat` function to wrap your Oceanic client:
+
+```typescript
+import { Client } from 'oceanic.js';
+import { Player, createOceanicCompat } from 'discord-player';
+
+const client = new Client({
+  auth: 'Bot YOUR_TOKEN',
+  gateway: {
+    intents: ['GUILDS', 'GUILD_VOICE_STATES']
+  }
+});
+
+// Create compatibility layer
+const compatClient = createOceanicCompat(client);
+
+// Use with Discord Player
+const player = new Player(compatClient);
+
+await client.connect();
+```
+
+### How It Works
+
+The `createOceanicCompat` function creates a proxy object that:
+
+1. Intercepts voice state update events
+2. Translates Oceanic.js API to discord.js-compatible format
+3. Proxies user, guild, and channel managers
+4. Sets up voice gateway adapter creators
+
+```typescript
+export function createOceanicCompat(client: Oceanic.Client): Client {
+  // Creates proxy intercepting:
+  // - client.users (manager proxy)
+  // - client.guilds (manager proxy)
+  // - client.channels (manager proxy)
+  // - voiceStateUpdate events
+  // - voice gateway adapters
+}
+```
+
+## Using with Eris
+
+### Installation
+
+```bash
+npm install discord-player eris
+```
+
+### Setup
+
+Use the `createErisCompat` function to wrap your Eris client:
+
+```typescript
+import Eris from 'eris';
+import { Player, createErisCompat } from 'discord-player';
+
+const client = new Eris.Client('Bot YOUR_TOKEN', {
+  intents: ['guilds', 'guildVoiceStates']
+});
+
+// Create compatibility layer
+const compatClient = createErisCompat(client);
+
+// Use with Discord Player
+const player = new Player(compatClient);
+
+client.connect();
+```
+
+### Event Differences
+
+Eris uses `rawWS` event while Oceanic uses `packet`:
+
+```typescript
+// Eris listens to:
+client.on('rawWS', (packet) => {
+  // Handle VOICE_STATE_UPDATE and VOICE_SERVER_UPDATE
+});
+
+// Oceanic listens to:
+client.on('packet', (packet) => {
+  // Handle VOICE_STATE_UPDATE and VOICE_SERVER_UPDATE
+});
+```
+
+## Complete Example (Oceanic)
+
+```typescript
+import { Client } from 'oceanic.js';
+import { Player, createOceanicCompat } from 'discord-player';
+
+const client = new Client({
+  auth: 'Bot YOUR_TOKEN',
+  gateway: {
+    intents: ['GUILDS', 'GUILD_VOICE_STATES', 'GUILD_MESSAGES']
+  }
+});
+
+const compatClient = createOceanicCompat(client);
+const player = new Player(compatClient);
+
+// Load extractors
+await player.extractors.loadDefault();
+
+client.on('ready', () => {
+  console.log(`Logged in as ${client.user.username}`);
+});
+
+client.on('messageCreate', async (message) => {
+  if (message.content === '!play') {
+    const channel = message.member?.voiceState?.channelID;
+    if (!channel) return;
+    
+    const voiceChannel = client.getChannel(channel);
+    const result = await player.search('Never Gonna Give You Up');
+    
+    if (!result.hasTracks()) {
+      await message.channel.createMessage('No results found!');
+      return;
+    }
+    
+    const queue = player.queues.create(message.guildID, {
+      metadata: { channel: message.channel }
+    });
+    
+    await queue.connect(voiceChannel);
+    queue.addTrack(result.tracks[0]);
+    
+    if (!queue.isPlaying()) {
+      await queue.node.play();
+    }
+    
+    await message.channel.createMessage(`Now playing: ${result.tracks[0].title}`);
+  }
+});
+
+await client.connect();
+```
+
+## Complete Example (Eris)
+
+```typescript
+import Eris from 'eris';
+import { Player, createErisCompat } from 'discord-player';
+
+const client = new Eris.Client('Bot YOUR_TOKEN', {
+  intents: ['guilds', 'guildVoiceStates', 'guildMessages']
+});
+
+const compatClient = createErisCompat(client);
+const player = new Player(compatClient);
+
+await player.extractors.loadDefault();
+
+client.on('ready', () => {
+  console.log(`Logged in as ${client.user.username}`);
+});
+
+client.on('messageCreate', async (message) => {
+  if (message.content === '!play') {
+    const member = message.member;
+    if (!member?.voiceState?.channelID) return;
+    
+    const voiceChannel = client.getChannel(member.voiceState.channelID);
+    const result = await player.search('Never Gonna Give You Up');
+    
+    if (!result.hasTracks()) {
+      await client.createMessage(message.channel.id, 'No results found!');
+      return;
+    }
+    
+    const queue = player.queues.create(message.guildID, {
+      metadata: { channel: message.channel }
+    });
+    
+    await queue.connect(voiceChannel);
+    queue.addTrack(result.tracks[0]);
+    
+    if (!queue.isPlaying()) {
+      await queue.node.play();
+    }
+    
+    await client.createMessage(
+      message.channel.id,
+      `Now playing: ${result.tracks[0].title}`
+    );
+  }
+});
+
+client.connect();
+```
+
+## API Translation
+
+The compatibility layer translates between discord.js and Eris/Oceanic APIs:
+
+### User Manager
+
+```typescript
+// discord.js style
+client.users.cache.get(id);
+client.users.resolve(resolvable);
+client.users.resolveId(resolvable);
+
+// Works with Eris/Oceanic after compat
+compatClient.users.cache.get(id);
+compatClient.users.resolve(resolvable);
+compatClient.users.resolveId(resolvable);
+```
+
+### Guild Manager
+
+```typescript
+// discord.js style
+client.guilds.cache.get(id);
+client.guilds.resolve(resolvable);
+
+// Works with Eris/Oceanic after compat
+compatClient.guilds.cache.get(id);
+compatClient.guilds.resolve(resolvable);
+```
+
+### Channel Manager
+
+```typescript
+// discord.js style
+client.channels.cache.get(id);
+client.channels.resolve(resolvable);
+
+// Works with Eris/Oceanic after compat
+compatClient.channels.cache.get(id);
+compatClient.channels.resolve(resolvable);
+```
+
+### Voice Channels
+
+The proxy adds discord.js-compatible methods to voice channels:
+
+```typescript
+// These methods are added by the compat layer
+channel.isVoiceBased(); // Returns true for voice/stage
+channel.isVoice();      // Returns true for voice channels
+channel.isStage();      // Returns true for stage channels
+```
+
+## Voice Adapter
+
+The compatibility layer creates voice gateway adapters:
+
+```typescript
+// For Oceanic
+function oceanicVoiceAdapterCreator(guild, client) {
+  return (methods) => {
+    return {
+      sendPayload(payload) {
+        if (guild.shard.status !== 'ready') return false;
+        guild.shard.send(payload.op, payload.d);
+        return true;
+      },
+      destroy() {
+        // Cleanup
+      }
+    };
+  };
+}
+
+// For Eris
+function erisVoiceAdapterCreator(guild, client) {
+  return (methods) => {
+    return {
+      sendPayload(payload) {
+        if (guild.shard.status !== 'ready') return false;
+        guild.shard.sendWS(payload.op, payload.d);
+        return true;
+      },
+      destroy() {
+        // Cleanup
+      }
+    };
+  };
+}
+```
+
+## Detecting Client Type
+
+You can check which library is being used:
+
+```typescript
+import { getCompatName, isErisProxy, isOceanicProxy } from 'discord-player';
+
+const compatName = getCompatName(client);
+console.log(compatName); // 'Eris', 'Oceanic', or null
+
+if (isErisProxy(client)) {
+  console.log('Using Eris compatibility layer');
+}
+
+if (isOceanicProxy(client)) {
+  console.log('Using Oceanic compatibility layer');
+}
+```
+
+## Limitations
+
+<Warning>
+  Some features may not work perfectly with the compatibility layers:
+</Warning>
+
+- Some discord.js-specific events may not be fully supported
+- Type definitions may show discord.js types even when using Eris/Oceanic
+- Advanced voice features may behave differently
+- Custom client extensions may not be proxied
+
+## Comparison
+
+<CardGroup cols={3}>
+  <Card title="discord.js" icon="check">
+    - Native support
+    - Full feature set
+    - Best compatibility
+  </Card>
+  <Card title="Oceanic.js" icon="triangle-exclamation">
+    - Via compatibility layer
+    - Most features work
+    - Some limitations
+  </Card>
+  <Card title="Eris" icon="triangle-exclamation">
+    - Via compatibility layer
+    - Most features work
+    - Some limitations
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Test thoroughly">
+    The compatibility layers are experimental. Test all features thoroughly in your specific use case.
+  </Accordion>
+  
+  <Accordion title="Report issues">
+    If you encounter issues with the compatibility layers, report them with details about your setup.
+  </Accordion>
+  
+  <Accordion title="Use discord.js when possible">
+    For the best experience and full feature support, use discord.js as the primary library.
+  </Accordion>
+  
+  <Accordion title="Keep libraries updated">
+    Ensure both Discord Player and your chosen library are up to date for best compatibility.
+  </Accordion>
+</AccordionGroup>
+
+## Checking Compatibility
+
+You can check if a client is compatible:
+
+```typescript
+import { isErisClient, isOceanicClient } from 'discord-player';
+
+if (isErisClient(client)) {
+  console.log('This is an Eris client');
+}
+
+if (isOceanicClient(client)) {
+  console.log('This is an Oceanic client');
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/guide/getting-started">
+    Basic setup with discord.js
+  </Card>
+  <Card title="Player API" icon="play" href="/api/player">
+    Learn about the Player class
+  </Card>
+</CardGroup>

@@ -1,122 +1,143 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Discord Player",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#5865F2",
+    "light": "#7289DA",
+    "dark": "#4752C4"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/androz2091/discord-player"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/androz2091/discord-player"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "core/player",
+              "core/queue",
+              "core/tracks",
+              "core/events",
+              "core/hooks"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Extractors",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "extractors/overview",
+              "extractors/default-extractors",
+              "extractors/custom-extractors"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Audio Features",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "audio/filters",
+              "audio/equalizer",
+              "audio/volume-control",
+              "audio/stream-config"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/query-caching",
+              "advanced/serialization",
+              "advanced/ip-rotation",
+              "advanced/eris-oceanic",
+              "advanced/stream-interceptor"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/voice-states",
+              "guides/queue-management",
+              "guides/error-handling",
+              "guides/debugging"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core Classes",
             "pages": [
-              "api-reference/introduction"
+              "api/player",
+              "api/guild-queue",
+              "api/track",
+              "api/playlist",
+              "api/search-result"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Queue Management",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/guild-queue-player-node",
+              "api/guild-queue-history",
+              "api/guild-queue-statistics",
+              "api/guild-node-manager"
+            ]
+          },
+          {
+            "group": "Audio Processing",
+            "pages": [
+              "api/guild-queue-audio-filters",
+              "api/stream-dispatcher",
+              "api/audio-filters"
+            ]
+          },
+          {
+            "group": "Extractors",
+            "pages": [
+              "api/base-extractor",
+              "api/extractor-execution-context"
+            ]
+          },
+          {
+            "group": "Hooks",
+            "pages": [
+              "api/hooks/use-main-player",
+              "api/hooks/use-queue",
+              "api/hooks/use-history",
+              "api/hooks/use-timeline",
+              "api/hooks/use-metadata",
+              "api/hooks/use-volume"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/query-resolver",
+              "api/query-cache",
+              "api/voice-utils",
+              "api/lyrics"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

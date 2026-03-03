@@ -1,0 +1,423 @@
+---
+title: QueryCache
+description: Query result caching system for improved performance
+icon: database
+---
+
+## Overview
+
+The `QueryCache` class provides a caching mechanism for search results to improve performance by avoiding redundant searches. It automatically expires cached entries after a configurable time period.
+
+## Constructor
+
+```typescript
+new QueryCache(player: Player, options?: QueryCacheOptions)
+```
+
+<ParamField path="player" type="Player" required>
+  The Discord Player instance
+</ParamField>
+
+<ParamField path="options" type="QueryCacheOptions">
+  Cache configuration options
+</ParamField>
+
+<ParamField path="options.checkInterval" type="number" default={18000000}>
+  Interval in milliseconds to check for expired cache entries (default: 5 hours)
+</ParamField>
+
+### Example
+
+```typescript
+import { Player, QueryCache } from 'discord-player';
+
+const player = new Player(client);
+
+// Create cache with default settings (5 hour expiry)
+const cache = new QueryCache(player);
+
+// Create cache with custom expiry check interval (1 hour)
+const customCache = new QueryCache(player, {
+  checkInterval: 3600000 // 1 hour in milliseconds
+});
+```
+
+---
+
+## Properties
+
+### player
+
+The Discord Player instance.
+
+```typescript
+cache.player: Player
+```
+
+---
+
+### options
+
+The cache configuration options.
+
+```typescript
+cache.options: QueryCacheOptions
+```
+
+---
+
+### timer
+
+The internal timer for automatic cleanup.
+
+```typescript
+cache.timer: NodeJS.Timer
+```
+
+---
+
+### checkInterval
+
+The interval in milliseconds between cache cleanup checks.
+
+```typescript
+cache.checkInterval: number
+```
+
+---
+
+## Methods
+
+### addData()
+
+Adds search results to the cache.
+
+```typescript
+await cache.addData(data: SearchResult): Promise<void>
+```
+
+<ParamField path="data" type="SearchResult" required>
+  The search result to cache
+</ParamField>
+
+#### Example
+
+```typescript
+const searchResult = await player.search('never gonna give you up');
+
+// Add to cache
+await cache.addData(searchResult);
+```
+
+---
+
+### resolve()
+
+Resolves a query from the cache if available.
+
+```typescript
+await cache.resolve(context: QueryCacheResolverContext): Promise<SearchResult>
+```
+
+<ParamField path="context" type="QueryCacheResolverContext" required>
+  The resolver context containing query information
+</ParamField>
+
+<ParamField path="context.query" type="string" required>
+  The query to resolve from cache
+</ParamField>
+
+<ParamField path="context.requestedBy" type="User">
+  The user who requested the query
+</ParamField>
+
+<ParamField path="context.queryType" type="SearchQueryType | `ext:${string}`">
+  The type of query
+</ParamField>
+
+<ResponseField name="result" type="SearchResult">
+  A SearchResult with cached tracks if found, or an empty SearchResult if not cached
+</ResponseField>
+
+#### Example
+
+```typescript
+import { QueryResolver } from 'discord-player';
+
+const query = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+const resolved = QueryResolver.resolve(query);
+
+// Try to resolve from cache
+const cachedResult = await cache.resolve({
+  query: query,
+  requestedBy: interaction.user,
+  queryType: resolved.type
+});
+
+if (cachedResult.tracks.length > 0) {
+  console.log('Found in cache!');
+} else {
+  console.log('Not cached, need to search');
+}
+```
+
+---
+
+### getData()
+
+Retrieves all cached entries.
+
+```typescript
+await cache.getData(): Promise<DiscordPlayerQueryResultCache<Track>[]>
+```
+
+<ResponseField name="cacheEntries" type="DiscordPlayerQueryResultCache<Track>[]">
+  Array of all cached query results
+</ResponseField>
+
+#### Example
+
+```typescript
+const allCached = await cache.getData();
+
+console.log(`Total cached entries: ${allCached.length}`);
+
+for (const entry of allCached) {
+  console.log(`- ${entry.data.title} (expires: ${new Date(entry.expireAfter)})`);
+}
+```
+
+---
+
+### cleanup()
+
+Manually triggers cleanup of expired cache entries.
+
+```typescript
+await cache.cleanup(): Promise<void>
+```
+
+#### Example
+
+```typescript
+// Manually trigger cleanup
+await cache.cleanup();
+
+console.log('Expired cache entries removed');
+```
+
+---
+
+### clear()
+
+Clears all cache entries immediately.
+
+```typescript
+await cache.clear(): Promise<void>
+```
+
+#### Example
+
+```typescript
+// Clear entire cache
+await cache.clear();
+
+console.log('Cache cleared');
+```
+
+---
+
+## DiscordPlayerQueryResultCache
+
+Class representing a single cached entry.
+
+### Constructor
+
+```typescript
+new DiscordPlayerQueryResultCache<T>(data: T, expireAfter?: number)
+```
+
+<ParamField path="data" type="T" required>
+  The data to cache
+</ParamField>
+
+<ParamField path="expireAfter" type="number" default={18000000}>
+  Time in milliseconds until expiration (default: 5 hours)
+</ParamField>
+
+### Properties
+
+```typescript
+entry.data: T              // The cached data
+entry.expireAfter: number  // Timestamp when entry expires
+```
+
+### Methods
+
+#### hasExpired()
+
+Checks if the cache entry has expired.
+
+```typescript
+entry.hasExpired(): boolean
+```
+
+<ResponseField name="expired" type="boolean">
+  True if the entry has expired, false otherwise
+</ResponseField>
+
+---
+
+## QueryCacheProvider Interface
+
+Interface for implementing custom cache providers.
+
+```typescript
+interface QueryCacheProvider<T> {
+  getData(): Promise<DiscordPlayerQueryResultCache<T>[]>;
+  addData(data: SearchResult): Promise<void>;
+  resolve(context: QueryCacheResolverContext): Promise<SearchResult>;
+}
+```
+
+### Custom Cache Provider Example
+
+```typescript
+import { QueryCacheProvider, SearchResult, Player } from 'discord-player';
+
+class RedisQueryCache implements QueryCacheProvider<Track> {
+  constructor(private redis: RedisClient, private player: Player) {}
+
+  async getData() {
+    const keys = await this.redis.keys('cache:*');
+    const entries = [];
+    
+    for (const key of keys) {
+      const data = await this.redis.get(key);
+      if (data) {
+        entries.push(JSON.parse(data));
+      }
+    }
+    
+    return entries;
+  }
+
+  async addData(data: SearchResult) {
+    for (const track of data.tracks) {
+      await this.redis.setex(
+        `cache:${track.url}`,
+        18000, // 5 hours
+        JSON.stringify(track)
+      );
+    }
+  }
+
+  async resolve(context: QueryCacheResolverContext) {
+    const cached = await this.redis.get(`cache:${context.query}`);
+    
+    if (!cached) {
+      return new SearchResult(this.player, {
+        query: context.query,
+        requestedBy: context.requestedBy,
+        queryType: context.queryType
+      });
+    }
+    
+    const track = JSON.parse(cached);
+    
+    return new SearchResult(this.player, {
+      query: context.query,
+      tracks: [track],
+      playlist: null,
+      queryType: context.queryType,
+      requestedBy: context.requestedBy
+    });
+  }
+}
+```
+
+---
+
+## Types
+
+### QueryCacheOptions
+
+```typescript
+interface QueryCacheOptions {
+  checkInterval?: number;
+}
+```
+
+### QueryCacheResolverContext
+
+```typescript
+interface QueryCacheResolverContext {
+  query: string;
+  requestedBy?: User;
+  queryType?: SearchQueryType | `ext:${string}`;
+}
+```
+
+---
+
+## Complete Usage Example
+
+```typescript
+import { Player, QueryCache, QueryResolver } from 'discord-player';
+
+const player = new Player(client);
+const cache = new QueryCache(player, {
+  checkInterval: 3600000 // Check every hour
+});
+
+// Search and cache function
+async function searchWithCache(query: string, user: User) {
+  // Resolve query type
+  const resolved = QueryResolver.resolve(query);
+  
+  // Try to get from cache first
+  const cached = await cache.resolve({
+    query: query,
+    requestedBy: user,
+    queryType: resolved.type
+  });
+  
+  if (cached.tracks.length > 0) {
+    console.log('Using cached result');
+    return cached;
+  }
+  
+  // Not in cache, perform actual search
+  console.log('Searching...');
+  const result = await player.search(query, { requestedBy: user });
+  
+  // Add to cache
+  await cache.addData(result);
+  
+  return result;
+}
+
+// Usage
+const result = await searchWithCache('never gonna give you up', interaction.user);
+queue.addTrack(result.tracks[0]);
+
+// Check cache stats
+const stats = await cache.getData();
+console.log(`Cached entries: ${stats.length}`);
+
+// Manual cleanup
+await cache.cleanup();
+
+// Clear all cache
+await cache.clear();
+```
+
+---
+
+## Notes
+
+- Cache entries are stored by track URL as the key
+- Default expiry time is 5 hours (18,000,000 milliseconds)
+- Cleanup runs automatically at the specified check interval
+- The timer is automatically unref'd to not block process exit
+- Duplicate URLs are not re-cached (existing entries are preserved)

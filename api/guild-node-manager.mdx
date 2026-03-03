@@ -1,0 +1,563 @@
+---
+title: GuildNodeManager
+description: Manager for creating and managing guild queue nodes
+icon: network-wired
+---
+
+## Overview
+
+The `GuildNodeManager` class is responsible for creating and managing guild queue instances. It maintains a cache of active queues and provides methods for queue lifecycle management. It is accessible via `player.nodes`.
+
+## Constructor
+
+```typescript
+new GuildNodeManager<Meta = any>(player: Player)
+```
+
+<ParamField path="player" type="Player" required>
+  The Discord Player instance that owns this node manager
+</ParamField>
+
+## Properties
+
+<ResponseField name="player" type="Player">
+  The Discord Player instance associated with this manager
+</ResponseField>
+
+<ResponseField name="cache" type="Collection<string, GuildQueue>">
+  Collection of all active guild queues, keyed by guild ID
+</ResponseField>
+
+## Methods
+
+### create()
+
+Creates a new guild queue or returns the existing one.
+
+```typescript
+create<T = Meta>(guild: GuildResolvable, options?: GuildNodeCreateOptions<T>): GuildQueue<T>
+```
+
+<ParamField path="guild" type="GuildResolvable" required>
+  The guild to create the queue for (can be Guild object, guild ID, or any Discord.js guild resolvable)
+</ParamField>
+
+<ParamField path="options" type="GuildNodeCreateOptions<T>" optional>
+  Queue configuration options
+  
+  <Expandable title="GuildNodeCreateOptions properties">
+    <ResponseField name="metadata" type="T | null">
+      Custom metadata to attach to the queue
+    </ResponseField>
+    
+    <ResponseField name="volume" type="number" default="100">
+      Initial volume level (0-100+)
+    </ResponseField>
+    
+    <ResponseField name="strategy" type="QueueStrategy" default="FIFO">
+      Queue strategy: `'FIFO'` or `'LIFO'`
+    </ResponseField>
+    
+    <ResponseField name="repeatMode" type="QueueRepeatMode">
+      Initial repeat mode
+    </ResponseField>
+    
+    <ResponseField name="selfDeaf" type="boolean" default="true">
+      Whether the bot should deafen itself
+    </ResponseField>
+    
+    <ResponseField name="connectionTimeout" type="number" default="120000">
+      Voice connection timeout in milliseconds
+    </ResponseField>
+    
+    <ResponseField name="bufferingTimeout" type="number" default="1000">
+      Buffering timeout for track transitions in milliseconds
+    </ResponseField>
+    
+    <ResponseField name="maxSize" type="number" default="Infinity">
+      Maximum number of tracks allowed in queue
+    </ResponseField>
+    
+    <ResponseField name="maxHistorySize" type="number" default="Infinity">
+      Maximum number of tracks to keep in history
+    </ResponseField>
+    
+    <ResponseField name="pauseOnEmpty" type="boolean" default="true">
+      Whether to pause when voice channel is empty
+    </ResponseField>
+    
+    <ResponseField name="leaveOnEmpty" type="boolean" default="true">
+      Whether to leave when voice channel is empty
+    </ResponseField>
+    
+    <ResponseField name="leaveOnEmptyCooldown" type="number" default="0">
+      Cooldown in milliseconds before leaving empty channel
+    </ResponseField>
+    
+    <ResponseField name="leaveOnEnd" type="boolean" default="true">
+      Whether to leave when queue ends
+    </ResponseField>
+    
+    <ResponseField name="leaveOnEndCooldown" type="number" default="0">
+      Cooldown in milliseconds before leaving after queue ends
+    </ResponseField>
+    
+    <ResponseField name="leaveOnStop" type="boolean" default="true">
+      Whether to leave when playback is stopped
+    </ResponseField>
+    
+    <ResponseField name="leaveOnStopCooldown" type="number" default="0">
+      Cooldown in milliseconds before leaving after stop
+    </ResponseField>
+    
+    <ResponseField name="disableHistory" type="boolean" default="false">
+      Whether to disable track history
+    </ResponseField>
+    
+    <ResponseField name="noEmitInsert" type="boolean" default="false">
+      Whether to suppress insert events
+    </ResponseField>
+    
+    <ResponseField name="preferBridgedMetadata" type="boolean" default="true">
+      Whether to prefer metadata from bridged tracks
+    </ResponseField>
+    
+    <ResponseField name="equalizer" type="EqualizerBand[]" default="[]">
+      Initial equalizer configuration
+    </ResponseField>
+    
+    <ResponseField name="a_filter" type="PCMFilters[]" default="[]">
+      Initial PCM filters
+    </ResponseField>
+    
+    <ResponseField name="biquad" type="BiquadFilters">
+      Initial biquad filter configuration
+    </ResponseField>
+    
+    <ResponseField name="resampler" type="number" default="48000">
+      Audio resampler rate in Hz
+    </ResponseField>
+    
+    <ResponseField name="defaultFFmpegFilters" type="FiltersName[]" default="[]">
+      Default FFmpeg filters to apply
+    </ResponseField>
+    
+    <ResponseField name="disableVolume" type="boolean" default="false">
+      Disable volume control
+    </ResponseField>
+    
+    <ResponseField name="disableEqualizer" type="boolean" default="false">
+      Disable equalizer
+    </ResponseField>
+    
+    <ResponseField name="disableFilterer" type="boolean" default="false">
+      Disable audio filters
+    </ResponseField>
+    
+    <ResponseField name="disableBiquad" type="boolean" default="false">
+      Disable biquad filter
+    </ResponseField>
+    
+    <ResponseField name="disableResampler" type="boolean" default="false">
+      Disable audio resampler
+    </ResponseField>
+    
+    <ResponseField name="disableCompressor" type="boolean" default="true">
+      Disable audio compressor
+    </ResponseField>
+    
+    <ResponseField name="disableSeeker" type="boolean" default="true">
+      Disable seeker functionality
+    </ResponseField>
+    
+    <ResponseField name="disableReverb" type="boolean" default="true">
+      Disable reverb effect
+    </ResponseField>
+    
+    <ResponseField name="disableFallbackStream" type="boolean" default="false">
+      Disable fallback streaming when primary extractor fails
+    </ResponseField>
+    
+    <ResponseField name="enableStreamInterceptor" type="boolean" default="false">
+      Enable stream interceptor
+    </ResponseField>
+    
+    <ResponseField name="verifyFallbackStream" type="boolean" default="false">
+      Verify fallback streams before using them
+    </ResponseField>
+    
+    <ResponseField name="onBeforeCreateStream" type="OnBeforeCreateStreamHandler">
+      Hook called before creating a stream
+    </ResponseField>
+    
+    <ResponseField name="onAfterCreateStream" type="OnAfterCreateStreamHandler">
+      Hook called after creating a stream
+    </ResponseField>
+    
+    <ResponseField name="onStreamExtracted" type="OnStreamExtractedHandler">
+      Hook called when a stream is extracted
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="returns" type="GuildQueue<T>">
+  The created or existing guild queue instance
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { GuildQueue } from 'discord-player';
+
+// Create a basic queue
+const queue = player.nodes.create(interaction.guild);
+
+// Create a queue with options
+const queue = player.nodes.create(interaction.guild, {
+  volume: 50,
+  leaveOnEnd: false,
+  leaveOnEmpty: true,
+  leaveOnEmptyCooldown: 60000,
+  metadata: {
+    channel: interaction.channel,
+    requestedBy: interaction.user
+  }
+});
+
+// Create with custom metadata type
+interface QueueMetadata {
+  channel: TextChannel;
+  requestedBy: User;
+  startTime: Date;
+}
+
+const queue = player.nodes.create<QueueMetadata>(interaction.guild, {
+  metadata: {
+    channel: interaction.channel as TextChannel,
+    requestedBy: interaction.user,
+    startTime: new Date()
+  }
+});
+```
+
+**Throws:**
+- `NoGuildError` if the guild cannot be resolved
+
+### get()
+
+Gets an existing queue.
+
+```typescript
+get<T = Meta>(node: NodeResolvable): GuildQueue<T> | null
+```
+
+<ParamField path="node" type="NodeResolvable" required>
+  Queue resolvable (GuildQueue instance, Guild object, or guild ID)
+</ParamField>
+
+<ResponseField name="returns" type="GuildQueue<T> | null">
+  The guild queue if found, `null` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+// Get by guild ID
+const queue = player.nodes.get(interaction.guildId);
+
+// Get by guild object
+const queue = player.nodes.get(interaction.guild);
+
+// Get by queue instance
+const sameQueue = player.nodes.get(queue);
+
+if (queue) {
+  console.log('Queue found with', queue.tracks.size, 'tracks');
+} else {
+  console.log('No queue exists for this guild');
+}
+```
+
+### has()
+
+Checks if a queue exists.
+
+```typescript
+has(node: NodeResolvable): boolean
+```
+
+<ParamField path="node" type="NodeResolvable" required>
+  Queue resolvable
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  `true` if queue exists, `false` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+if (player.nodes.has(interaction.guildId)) {
+  await interaction.reply('Queue already exists!');
+} else {
+  const queue = player.nodes.create(interaction.guild);
+  await interaction.reply('Created new queue!');
+}
+```
+
+### delete()
+
+Deletes a queue and cleans up all resources.
+
+```typescript
+delete(node: NodeResolvable): boolean
+```
+
+<ParamField path="node" type="NodeResolvable" required>
+  Queue resolvable
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  `true` if queue was deleted, `false` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+const deleted = player.nodes.delete(interaction.guildId);
+
+if (deleted) {
+  await interaction.reply('Queue deleted and bot left voice channel');
+} else {
+  await interaction.reply('No queue to delete');
+}
+```
+
+**Throws:**
+- `NoGuildQueueError` if trying to delete a non-existing queue
+
+**Note:** This method performs cleanup operations including:
+- Stopping playback
+- Disconnecting from voice channel
+- Clearing all tracks and history
+- Removing all event listeners
+- Clearing all timeouts
+
+### resolve()
+
+Resolves a node resolvable to a GuildQueue instance.
+
+```typescript
+resolve<T = Meta>(node: NodeResolvable): GuildQueue<T> | undefined
+```
+
+<ParamField path="node" type="NodeResolvable" required>
+  Queue resolvable
+</ParamField>
+
+<ResponseField name="returns" type="GuildQueue<T> | undefined">
+  The resolved guild queue, or `undefined` if not found
+</ResponseField>
+
+**Example:**
+
+```typescript
+const queue = player.nodes.resolve(interaction.guild);
+
+if (queue) {
+  console.log('Resolved queue:', queue.id);
+}
+```
+
+### resolveId()
+
+Resolves a node resolvable to a guild ID.
+
+```typescript
+resolveId(node: NodeResolvable): string | null
+```
+
+<ParamField path="node" type="NodeResolvable" required>
+  Queue resolvable
+</ParamField>
+
+<ResponseField name="returns" type="string | null">
+  The guild ID, or `null` if not found
+</ResponseField>
+
+**Example:**
+
+```typescript
+const guildId = player.nodes.resolveId(queue);
+console.log('Queue belongs to guild:', guildId);
+```
+
+## Usage Examples
+
+### Basic Queue Management
+
+```typescript
+import { Player } from 'discord-player';
+
+const player = new Player(client);
+
+// Create a queue when user joins voice
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isCommand()) return;
+  
+  if (interaction.commandName === 'play') {
+    // Get or create queue
+    let queue = player.nodes.get(interaction.guildId);
+    
+    if (!queue) {
+      queue = player.nodes.create(interaction.guild, {
+        metadata: {
+          channel: interaction.channel,
+          requestedBy: interaction.user
+        }
+      });
+    }
+    
+    // Use queue...
+  }
+});
+```
+
+### Queue with Custom Configuration
+
+```typescript
+const queue = player.nodes.create(interaction.guild, {
+  // Audio settings
+  volume: 50,
+  equalizer: [
+    { band: 0, gain: 0.2 },
+    { band: 1, gain: 0.15 }
+  ],
+  
+  // Behavior settings
+  leaveOnEnd: false,
+  leaveOnEmpty: true,
+  leaveOnEmptyCooldown: 300000, // 5 minutes
+  pauseOnEmpty: true,
+  
+  // Queue limits
+  maxSize: 100,
+  maxHistorySize: 50,
+  
+  // Features
+  disableHistory: false,
+  preferBridgedMetadata: true,
+  
+  // Metadata
+  metadata: {
+    channel: interaction.channel,
+    requestedBy: interaction.user,
+    djRole: interaction.guild.roles.cache.find(r => r.name === 'DJ')
+  }
+});
+```
+
+### Queue Lifecycle Management
+
+```typescript
+// Create queue
+const queue = player.nodes.create(interaction.guild);
+
+// Check if queue exists
+if (player.nodes.has(interaction.guildId)) {
+  console.log('Queue already exists');
+}
+
+// Get queue
+const existingQueue = player.nodes.get(interaction.guildId);
+
+// Delete queue when done
+player.nodes.delete(interaction.guildId);
+```
+
+### Iterate All Queues
+
+```typescript
+// Get all active queues
+const allQueues = player.nodes.cache;
+
+console.log(`Active queues: ${allQueues.size}`);
+
+allQueues.forEach((queue, guildId) => {
+  console.log(`Guild ${queue.guild.name}: ${queue.tracks.size} tracks`);
+});
+```
+
+### Clean Up Inactive Queues
+
+```typescript
+function cleanupInactiveQueues() {
+  player.nodes.cache.forEach((queue, guildId) => {
+    // Delete queue if no tracks and not playing
+    if (queue.tracks.size === 0 && !queue.node.isPlaying()) {
+      player.nodes.delete(guildId);
+      console.log(`Cleaned up queue for guild ${guildId}`);
+    }
+  });
+}
+
+// Run cleanup every hour
+setInterval(cleanupInactiveQueues, 3600000);
+```
+
+### Typed Metadata
+
+```typescript
+interface MyQueueMetadata {
+  channel: TextChannel;
+  requestedBy: User;
+  djOnly: boolean;
+  language: string;
+}
+
+const queue = player.nodes.create<MyQueueMetadata>(interaction.guild, {
+  metadata: {
+    channel: interaction.channel as TextChannel,
+    requestedBy: interaction.user,
+    djOnly: false,
+    language: 'en'
+  }
+});
+
+// TypeScript knows the metadata type
+const channel = queue.metadata?.channel; // TextChannel
+const user = queue.metadata?.requestedBy; // User
+```
+
+## Related Types
+
+### NodeResolvable
+
+```typescript
+type NodeResolvable = GuildQueue | GuildResolvable
+```
+
+Can be:
+- A `GuildQueue` instance
+- A `Guild` object
+- A guild ID string
+- Any Discord.js guild resolvable
+
+### QueueStrategy
+
+```typescript
+type QueueStrategy = 'FIFO' | 'LIFO'
+```
+
+- `FIFO`: First In First Out (default) - tracks play in order added
+- `LIFO`: Last In First Out - most recently added track plays next
+
+## Notes
+
+- Queues are automatically cached when created
+- Creating a queue for a guild that already has one returns the existing queue
+- Deleting a queue performs complete cleanup including disconnecting from voice
+- The `cache` property is a Discord.js Collection for easy iteration
+- Options not specified in `create()` use sensible defaults
+- Global hooks (`onBeforeCreateStream`, etc.) are automatically applied if registered
+- Use typed metadata for better TypeScript support

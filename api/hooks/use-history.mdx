@@ -1,0 +1,261 @@
+---
+title: useHistory
+description: React-style hook to access guild queue history
+icon: clock-rotate-left
+---
+
+## Overview
+
+The `useHistory` hook provides access to the `GuildQueueHistory` instance for a specific guild. This allows you to access previously played tracks and navigate through the queue history.
+
+## Usage
+
+```typescript
+import { useHistory } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('previous')
+    .setDescription('Play the previous track'),
+  async execute({ interaction }) {
+    const history = useHistory();
+    
+    if (!history) {
+      return interaction.reply('No queue history available!');
+    }
+    
+    const previous = await history.previous();
+    
+    if (!previous) {
+      return interaction.reply('No previous track!');
+    }
+    
+    return interaction.reply(`Now playing: **${previous.title}**`);
+  }
+});
+```
+
+## Signature
+
+```typescript
+function useHistory<Meta = unknown>(): GuildQueueHistory<Meta> | null
+function useHistory<Meta = unknown>(node: NodeResolvable): GuildQueueHistory<Meta> | null
+```
+
+## Parameters
+
+<ParamField path="node" type="NodeResolvable" optional>
+  Guild queue node resolvable (guild ID, Guild object, or GuildQueue). If not provided, defaults to the guild from the command context.
+</ParamField>
+
+## Type Parameters
+
+<ParamField path="Meta" type="unknown" optional>
+  Type of the queue metadata. Defaults to `unknown`.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="history" type="GuildQueueHistory<Meta> | null">
+  The guild queue history instance if a queue exists, or `null` if no queue is found. The history provides access to:
+  - `tracks` - Previously played tracks
+  - `currentTrack` - Current track in history
+  - `previous()` - Go to previous track
+  - `next()` - Go to next track in history
+  - `clear()` - Clear history
+  - `isEmpty()` - Check if history is empty
+</ResponseField>
+
+## When to Use
+
+Use `useHistory` when you need to:
+
+- Implement a "previous" or "back" command
+- View previously played tracks
+- Navigate through playback history
+- Clear the history
+- Check if history is available
+
+## Example: Previous Command
+
+```typescript
+import { useHistory } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('previous')
+    .setDescription('Play the previous track'),
+  async execute({ interaction }) {
+    const history = useHistory();
+    
+    if (!history) {
+      return interaction.reply('❌ No queue found!');
+    }
+    
+    if (history.isEmpty()) {
+      return interaction.reply('❌ No previous tracks in history!');
+    }
+    
+    await interaction.deferReply();
+    
+    const previous = await history.previous();
+    
+    if (!previous) {
+      return interaction.followUp('❌ Failed to play previous track!');
+    }
+    
+    return interaction.followUp(`⏮️ Now playing: **${previous.title}**`);
+  }
+});
+```
+
+## Example: History List Command
+
+```typescript
+import { useHistory } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('history')
+    .setDescription('Show recently played tracks'),
+  async execute({ interaction }) {
+    const history = useHistory();
+    
+    if (!history) {
+      return interaction.reply('No queue found!');
+    }
+    
+    if (history.isEmpty()) {
+      return interaction.reply('No tracks in history!');
+    }
+    
+    const tracks = history.tracks.toArray();
+    const list = tracks.slice(0, 10).map((track, i) => 
+      `${i + 1}. **${track.title}** by ${track.author}`
+    ).join('\n');
+    
+    return interaction.reply({
+      embeds: [{
+        title: 'Recently Played',
+        description: list || 'No tracks in history',
+        footer: {
+          text: `Total: ${tracks.length} tracks`
+        }
+      }]
+    });
+  }
+});
+```
+
+## Example: Clear History Command
+
+```typescript
+import { useHistory } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('clearhistory')
+    .setDescription('Clear the queue history'),
+  async execute({ interaction }) {
+    const history = useHistory();
+    
+    if (!history) {
+      return interaction.reply('No queue found!');
+    }
+    
+    if (history.isEmpty()) {
+      return interaction.reply('History is already empty!');
+    }
+    
+    const count = history.tracks.size;
+    history.clear();
+    
+    return interaction.reply(`✅ Cleared ${count} tracks from history`);
+  }
+});
+```
+
+## Example: Back and Forward Navigation
+
+```typescript
+import { useHistory } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('navigate')
+    .setDescription('Navigate through history')
+    .addStringOption(option =>
+      option.setName('direction')
+        .setDescription('Direction to navigate')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Back', value: 'back' },
+          { name: 'Forward', value: 'forward' }
+        )
+    ),
+  async execute({ interaction }) {
+    const history = useHistory();
+    const direction = interaction.options.getString('direction', true);
+    
+    if (!history) {
+      return interaction.reply('No queue found!');
+    }
+    
+    await interaction.deferReply();
+    
+    let track;
+    
+    if (direction === 'back') {
+      track = await history.previous();
+    } else {
+      track = await history.next();
+    }
+    
+    if (!track) {
+      return interaction.followUp(`No ${direction === 'back' ? 'previous' : 'next'} track!`);
+    }
+    
+    return interaction.followUp(
+      `${direction === 'back' ? '⏮️' : '⏭️'} Now playing: **${track.title}**`
+    );
+  }
+});
+```
+
+## Example: With Custom Guild
+
+```typescript
+import { useHistory } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('check-history')
+    .setDescription('Check history for a specific guild')
+    .addStringOption(option =>
+      option.setName('guild-id')
+        .setDescription('Guild ID to check')
+        .setRequired(true)
+    ),
+  async execute({ interaction }) {
+    const guildId = interaction.options.getString('guild-id', true);
+    const history = useHistory(guildId);
+    
+    if (!history) {
+      return interaction.reply(`No queue found for guild ${guildId}`);
+    }
+    
+    const count = history.tracks.size;
+    const isEmpty = history.isEmpty();
+    
+    return interaction.reply(
+      `Guild ${guildId} has ${count} tracks in history (${isEmpty ? 'empty' : 'not empty'})`
+    );
+  }
+});
+```
+
+## Related Hooks
+
+- [useQueue](/api/hooks/use-queue) - Access guild queue
+- [useTimeline](/api/hooks/use-timeline) - Control playback
+- [useMainPlayer](/api/hooks/use-main-player) - Access main player

@@ -1,80 +1,444 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Build your first Discord music bot with Discord Player in minutes
 ---
 
-## Get started in three steps
+# Quick Start Guide
 
-Get your documentation site running locally and make your first customization.
+This guide will help you build a basic but fully functional music bot using Discord Player. By the end, you'll have a bot that can play music from various sources!
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+Before you begin, make sure you have:
+
+- Completed the [Installation](/installation) guide
+- A Discord bot token from the [Discord Developer Portal](https://discord.com/developers/applications)
+- Basic knowledge of JavaScript and Discord.js
+
+## Step 1: Initialize Your Bot
+
+Create a new file called `index.js` and set up your Discord client:
+
+```javascript index.js
+const { Client, GatewayIntentBits } = require('discord.js');
+const { Player } = require('discord-player');
+const { DefaultExtractors } = require('@discord-player/extractor');
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+```
+
+<Warning>
+  The `GuildVoiceStates` intent is **required** for Discord Player to work. Without it, the bot won't be able to connect to voice channels.
+</Warning>
+
+## Step 2: Create the Player Instance
+
+Create the main player instance and load extractors:
+
+```javascript index.js
+// Create the player instance - this is the entrypoint for discord-player
+const player = new Player(client);
+
+// Load all default extractors
+player.extractors.loadMulti(DefaultExtractors).then(() => {
+  console.log('Extractors loaded successfully');
+});
+```
+
+<Info>
+  The `Player` instance handles and keeps track of all queues and their components. You only need one player instance for your entire bot.
+</Info>
+
+## Step 3: Set Up Event Listeners
+
+Discord Player is event-based. Let's add listeners for important events:
+
+```javascript index.js
+// Emitted when a track starts playing
+player.events.on('playerStart', (queue, track) => {
+  queue.metadata.channel.send(`Now playing **${track.cleanTitle}**!`);
+});
+
+// Emitted when an error occurs
+player.events.on('error', (queue, error) => {
+  console.error(`Error in ${queue.guild.name}: ${error.message}`);
+});
+
+// Emitted when a track is added to the queue
+player.events.on('audioTrackAdd', (queue, track) => {
+  queue.metadata.channel.send(`Added **${track.cleanTitle}** to the queue!`);
+});
+
+// Emitted when the queue is empty
+player.events.on('emptyQueue', (queue) => {
+  queue.metadata.channel.send('Queue finished!');
+});
+```
+
+<Tip>
+  The `queue.metadata` object is where you store custom data like the text channel reference. You'll set this when creating the queue.
+</Tip>
+
+## Step 4: Create the Play Command
+
+Now let's create a simple play command using Discord.js interaction commands:
+
+```javascript play.js
+const { SlashCommandBuilder } = require('discord.js');
+const { useMainPlayer } = require('discord-player');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('play')
+    .setDescription('Play a song')
+    .addStringOption(option =>
+      option
+        .setName('query')
+        .setDescription('The song you want to play')
+        .setRequired(true)
+    ),
+
+  async execute(interaction) {
+    const player = useMainPlayer();
+    const channel = interaction.member.voice.channel;
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    if (!channel) {
+      return interaction.reply('You need to be in a voice channel!');
+    }
 
-### Step 2: Deploy your changes
+    const query = interaction.options.getString('query', true);
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    // Defer the reply as searching and loading can take time
+    await interaction.deferReply();
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    try {
+      const { track } = await player.play(channel, query, {
+        nodeOptions: {
+          metadata: {
+            channel: interaction.channel,
+            client: interaction.guild.members.me,
+            requestedBy: interaction.user,
+          },
+        },
+      });
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+      return interaction.followUp(`**${track.cleanTitle}** enqueued!`);
+    } catch (error) {
+      return interaction.followUp(`Something went wrong: ${error.message}`);
+    }
+  },
+};
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  The `useMainPlayer()` hook allows you to access the player instance from anywhere in your code without passing it around.
 </Note>
+
+## Step 5: Add Queue Control Commands
+
+Let's add more commands to control the queue:
+
+<CodeGroup>
+```javascript skip.js
+const { SlashCommandBuilder } = require('discord.js');
+const { useQueue } = require('discord-player');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('skip')
+    .setDescription('Skip the current song'),
+
+  async execute(interaction) {
+    const queue = useQueue(interaction.guild.id);
+
+    if (!queue || !queue.isPlaying()) {
+      return interaction.reply('No music is currently playing!');
+    }
+
+    queue.node.skip();
+    return interaction.reply('Skipped the current song!');
+  },
+};
+```
+
+```javascript pause.js
+const { SlashCommandBuilder } = require('discord.js');
+const { useQueue } = require('discord-player');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('pause')
+    .setDescription('Pause/resume the current song'),
+
+  async execute(interaction) {
+    const queue = useQueue(interaction.guild.id);
+
+    if (!queue || !queue.isPlaying()) {
+      return interaction.reply('No music is currently playing!');
+    }
+
+    queue.node.setPaused(!queue.node.isPaused());
+    return interaction.reply(
+      queue.node.isPaused() ? 'Paused!' : 'Resumed!'
+    );
+  },
+};
+```
+
+```javascript stop.js
+const { SlashCommandBuilder } = require('discord.js');
+const { useQueue } = require('discord-player');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('stop')
+    .setDescription('Stop the music and clear the queue'),
+
+  async execute(interaction) {
+    const queue = useQueue(interaction.guild.id);
+
+    if (!queue || !queue.isPlaying()) {
+      return interaction.reply('No music is currently playing!');
+    }
+
+    queue.delete();
+    return interaction.reply('Stopped the music and cleared the queue!');
+  },
+};
+```
+
+```javascript queue.js
+const { SlashCommandBuilder } = require('discord.js');
+const { useQueue } = require('discord-player');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('queue')
+    .setDescription('View the current queue'),
+
+  async execute(interaction) {
+    const queue = useQueue(interaction.guild.id);
+
+    if (!queue || !queue.isPlaying()) {
+      return interaction.reply('No music is currently playing!');
+    }
+
+    const currentTrack = queue.currentTrack;
+    const tracks = queue.tracks.toArray();
+
+    let queueString = `**Now Playing:**\n${currentTrack.cleanTitle}\n\n`;
+
+    if (tracks.length > 0) {
+      queueString += `**Up Next:**\n`;
+      queueString += tracks
+        .slice(0, 10)
+        .map((track, i) => `${i + 1}. ${track.cleanTitle}`)
+        .join('\n');
+
+      if (tracks.length > 10) {
+        queueString += `\n...and ${tracks.length - 10} more`;
+      }
+    }
+
+    return interaction.reply(queueString);
+  },
+};
+```
+</CodeGroup>
+
+## Step 6: Register Commands and Start the Bot
+
+Finally, let's register the commands and start the bot:
+
+```javascript index.js
+const fs = require('fs');
+const path = require('path');
+
+// Load commands
+client.commands = new Map();
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs
+  .readdirSync(commandsPath)
+  .filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+  const command = require(path.join(commandsPath, file));
+  client.commands.set(command.data.name, command);
+}
+
+// Handle interactions
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  const command = client.commands.get(interaction.commandName);
+  if (!command) return;
+
+  try {
+    await player.context.provide({ guild: interaction.guild }, () =>
+      command.execute(interaction)
+    );
+  } catch (error) {
+    console.error(error);
+    const reply = {
+      content: 'There was an error executing that command!',
+      ephemeral: true,
+    };
+    
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(reply);
+    } else {
+      await interaction.reply(reply);
+    }
+  }
+});
+
+// Ready event
+client.once('ready', () => {
+  console.log(`Logged in as ${client.user.tag}`);
+});
+
+// Login
+client.login('YOUR_BOT_TOKEN');
+```
+
+<Warning>
+  Don't forget to wrap command execution in `player.context.provide()`. This allows the `useMainPlayer()` and `useQueue()` hooks to work properly.
+</Warning>
+
+## Project Structure
+
+Your final project structure should look like this:
+
+```
+my-music-bot/
+├── commands/
+│   ├── play.js
+│   ├── skip.js
+│   ├── pause.js
+│   ├── stop.js
+│   └── queue.js
+├── index.js
+├── package.json
+└── .env
+```
+
+## Running Your Bot
+
+<Steps>
+  <Step title="Deploy Commands">
+    Register your slash commands with Discord:
+
+    ```javascript deploy-commands.js
+    const { REST, Routes } = require('discord.js');
+    const fs = require('fs');
+    const path = require('path');
+
+    const commands = [];
+    const commandsPath = path.join(__dirname, 'commands');
+    const commandFiles = fs
+      .readdirSync(commandsPath)
+      .filter(file => file.endsWith('.js'));
+
+    for (const file of commandFiles) {
+      const command = require(path.join(commandsPath, file));
+      commands.push(command.data.toJSON());
+    }
+
+    const rest = new REST().setToken('YOUR_BOT_TOKEN');
+
+    (async () => {
+      try {
+        console.log('Started refreshing application (/) commands.');
+
+        await rest.put(
+          Routes.applicationCommands('YOUR_CLIENT_ID'),
+          { body: commands }
+        );
+
+        console.log('Successfully reloaded application (/) commands.');
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+    ```
+
+    Run: `node deploy-commands.js`
+  </Step>
+
+  <Step title="Start Your Bot">
+    ```bash
+    node index.js
+    ```
+
+    You should see:
+    ```
+    Extractors loaded successfully
+    Logged in as YourBot#1234
+    ```
+  </Step>
+
+  <Step title="Test the Bot">
+    1. Join a voice channel in your Discord server
+    2. Use `/play never gonna give you up` to play a song
+    3. Try other commands like `/skip`, `/pause`, `/queue`
+  </Step>
+</Steps>
+
+## What's Next?
+
+Congratulations! You've built a working music bot. Here are some next steps:
+
+<CardGroup cols={2}>
+  <Card title="Audio Filters" icon="sliders" href="/audio/filters">
+    Learn how to apply audio filters like bass boost and nightcore
+  </Card>
+  
+  <Card title="Queue Management" icon="list" href="/guides/queue-management">
+    Explore advanced queue features like shuffle and repeat modes
+  </Card>
+  
+  <Card title="Custom Extractors" icon="puzzle-piece" href="/extractors/custom-extractors">
+    Create custom extractors for additional audio sources
+  </Card>
+  
+  <Card title="Events" icon="bell" href="/core/events">
+    Discover all available events for better control
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Bot doesn't join the voice channel
+
+- Make sure you have the `GuildVoiceStates` intent enabled
+- Check that the bot has permission to connect to the voice channel
+- Verify that you're in a voice channel when using the play command
+
+### No audio is playing
+
+- Ensure FFmpeg is properly installed and accessible
+- Check that you've installed an opus library (mediaplex)
+- Verify extractors are loaded: check console for "Extractors loaded successfully"
+
+### Commands not working
+
+- Make sure you've registered the slash commands using `deploy-commands.js`
+- Wrap command execution in `player.context.provide()` as shown above
+- Check the console for error messages
+
+### "Cannot find module" errors
+
+- Run `npm install` to ensure all dependencies are installed
+- Check that file paths in `require()` statements are correct
+- Verify that the `commands` folder exists and contains the command files
+
+<Tip>
+  Use `player.scanDeps()` to generate a dependency report that can help troubleshoot installation issues.
+</Tip>

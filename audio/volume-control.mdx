@@ -1,0 +1,444 @@
+---
+title: Volume Control
+description: Control audio playback volume with real-time PCM transformation
+icon: volume
+---
+
+## Overview
+
+Discord Player provides precise volume control through real-time PCM (Pulse Code Modulation) transformation. Volume changes are applied instantly without interrupting playback or requiring stream recreation.
+
+## Basic Usage
+
+### Set Volume
+
+```typescript
+// Set volume to 50%
+queue.node.setVolume(50);
+```
+
+### Get Current Volume
+
+```typescript
+const volume = queue.node.volume;
+console.log(`Current volume: ${volume}%`); // Current volume: 50%
+```
+
+## Volume Transformer
+
+The volume system uses a `VolumeTransformer` that operates on PCM audio data:
+
+```typescript
+import { VolumeTransformer } from '@discord-player/equalizer';
+
+const volumeTransformer = new VolumeTransformer({
+  volume: 100  // Default 100%
+});
+```
+
+### Volume Properties
+
+<CardGroup cols={2}>
+  <Card title="Volume" icon="percent">
+    Integer percentage (0-200+)
+    ```typescript
+    queue.node.volume // 100
+    ```
+  </Card>
+  
+  <Card title="Volume Approx" icon="calculator">
+    Float value with decimals
+    ```typescript
+    queue.filters.volume?.volumeApprox // 100.5
+    ```
+  </Card>
+</CardGroup>
+
+## Volume Range
+
+<Tabs>
+  <Tab title="Standard Range">
+    **0 - 100%**
+    
+    Normal listening range
+    ```typescript
+    queue.node.setVolume(75);  // 75% volume
+    ```
+  </Tab>
+  
+  <Tab title="Boost Range">
+    **100 - 200%**
+    
+    Amplified audio (may cause distortion)
+    ```typescript
+    queue.node.setVolume(150);  // 150% volume (boost)
+    ```
+  </Tab>
+  
+  <Tab title="Mute">
+    **0%**
+    
+    Silence
+    ```typescript
+    queue.node.setVolume(0);  // Mute
+    ```
+  </Tab>
+</Tabs>
+
+## Default Volume
+
+Set default volume when creating a queue:
+
+```typescript
+const queue = player.queues.create(guild, {
+  volume: 80  // Default to 80%
+});
+
+console.log(queue.node.volume); // 80
+```
+
+## Volume Methods
+
+### Set Volume
+
+```typescript
+// Returns boolean indicating success
+const success = queue.node.setVolume(60);
+
+if (success) {
+  console.log('Volume updated to 60%');
+}
+```
+
+### Access Volume Transformer
+
+```typescript
+const volumeFilter = queue.filters.volume;
+
+if (volumeFilter) {
+  // Get exact volume with decimals
+  console.log(volumeFilter.volumeApprox);
+  
+  // Get rounded volume
+  console.log(volumeFilter.volume);
+  
+  // Set volume directly on transformer
+  volumeFilter.setVolume(75);
+  
+  // Or use property setter
+  volumeFilter.volume = 75;
+}
+```
+
+## Volume Validation
+
+The volume transformer includes automatic validation:
+
+```typescript
+// Negative values clamped to 0
+queue.node.setVolume(-10);  // Sets to 0
+
+// Infinite values clamped to 100
+queue.node.setVolume(Infinity);  // Sets to 100
+
+// NaN rejected with error
+try {
+  queue.node.setVolume(NaN);
+} catch (error) {
+  console.error('Invalid volume value');
+}
+```
+
+## Disable Volume Control
+
+You can disable volume transformation at queue creation:
+
+```typescript
+const queue = player.queues.create(guild, {
+  disableVolume: true  // Disable volume control
+});
+
+// Volume control will not be available
+queue.node.setVolume(50);  // Returns false
+```
+
+## Advanced Usage
+
+### Volume with Stream Config
+
+```typescript
+player.events.on('willPlayTrack', (queue, track, config, resolve) => {
+  // Modify volume in stream config
+  config.dispatcherConfig.volume = 85;
+  
+  resolve();
+});
+```
+
+### Dynamic Volume Based on Track
+
+```typescript
+player.events.on('audioTrackAdd', (queue, track) => {
+  // Set different volume for different sources
+  if (track.source === 'spotify') {
+    queue.node.setVolume(90);
+  } else if (track.source === 'youtube') {
+    queue.node.setVolume(75);
+  }
+});
+```
+
+### Volume Fade Effects
+
+```typescript
+// Fade out over 3 seconds
+async function fadeOut(queue: GuildQueue, duration = 3000) {
+  const startVolume = queue.node.volume;
+  const steps = 30;
+  const stepDuration = duration / steps;
+  const stepSize = startVolume / steps;
+  
+  for (let i = 0; i < steps; i++) {
+    const newVolume = startVolume - (stepSize * (i + 1));
+    queue.node.setVolume(Math.max(0, newVolume));
+    await new Promise(resolve => setTimeout(resolve, stepDuration));
+  }
+}
+
+// Fade in over 3 seconds
+async function fadeIn(queue: GuildQueue, targetVolume = 100, duration = 3000) {
+  const steps = 30;
+  const stepDuration = duration / steps;
+  const stepSize = targetVolume / steps;
+  
+  for (let i = 0; i < steps; i++) {
+    const newVolume = stepSize * (i + 1);
+    queue.node.setVolume(Math.min(targetVolume, newVolume));
+    await new Promise(resolve => setTimeout(resolve, stepDuration));
+  }
+}
+
+// Usage
+await fadeOut(queue);
+queue.node.skip();
+await fadeIn(queue, 80);
+```
+
+### Volume Normalization
+
+```typescript
+player.events.on('playerStart', (queue, track) => {
+  // Normalize volume based on track metadata
+  const replayGain = track.raw?.replayGain || 0;
+  const normalizedVolume = Math.max(0, Math.min(200, 100 + replayGain));
+  
+  queue.node.setVolume(normalizedVolume);
+});
+```
+
+## Volume Events
+
+```typescript
+queue.on('volume', (volume) => {
+  console.log(`Volume changed to ${volume}%`);
+});
+```
+
+## Volume State Management
+
+### Save and Restore Volume
+
+```typescript
+const volumeState = new Map<string, number>();
+
+// Save volume for guild
+volumeState.set(guild.id, queue.node.volume);
+
+// Restore volume
+const savedVolume = volumeState.get(guild.id);
+if (savedVolume !== undefined) {
+  queue.node.setVolume(savedVolume);
+}
+```
+
+### Volume Persistence
+
+```typescript
+import { writeFile, readFile } from 'fs/promises';
+
+interface VolumeSettings {
+  [guildId: string]: number;
+}
+
+// Save volume settings
+async function saveVolumeSettings(settings: VolumeSettings) {
+  await writeFile(
+    'volume-settings.json',
+    JSON.stringify(settings, null, 2)
+  );
+}
+
+// Load volume settings
+async function loadVolumeSettings(): Promise<VolumeSettings> {
+  try {
+    const data = await readFile('volume-settings.json', 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return {};
+  }
+}
+
+// Usage
+const settings = await loadVolumeSettings();
+const queue = player.queues.get(guild);
+
+if (queue && settings[guild.id]) {
+  queue.node.setVolume(settings[guild.id]);
+}
+```
+
+## Volume with Equalizer
+
+```typescript
+import { EqualizerConfigurationPreset } from 'discord-player';
+
+// Apply EQ preset
+await queue.filters.equalizer?.setEQ(
+  EqualizerConfigurationPreset.FullBass
+);
+
+// Reduce volume to prevent clipping
+queue.node.setVolume(70);
+```
+
+## Volume Graph
+
+Get volume state from filter graph:
+
+```typescript
+const graph = queue.filters.graph.dump();
+console.log('Current volume:', graph.volume); // 100
+
+// Access volume transformer directly
+const volumeTransformer = queue.filters.graph.volume;
+console.log('Volume:', volumeTransformer?.volume);
+```
+
+## Volume Cache
+
+Volume state is cached in the filters system:
+
+```typescript
+// Access cached volume
+const cachedVolume = queue.filters._lastFiltersCache.volume;
+console.log('Cached volume:', cachedVolume);
+
+// Volume persists across track changes
+queue.node.skip();
+// New track plays at same volume
+```
+
+## Command Examples
+
+### Volume Command
+
+```typescript
+import { SlashCommandBuilder } from 'discord.js';
+
+export const command = new SlashCommandBuilder()
+  .setName('volume')
+  .setDescription('Set playback volume')
+  .addIntegerOption(option =>
+    option
+      .setName('level')
+      .setDescription('Volume level (0-200)')
+      .setMinValue(0)
+      .setMaxValue(200)
+      .setRequired(true)
+  );
+
+export async function execute(interaction: ChatInputCommandInteraction) {
+  const queue = useQueue(interaction.guild!);
+  
+  if (!queue) {
+    return interaction.reply('No music playing!');
+  }
+  
+  const volume = interaction.options.getInteger('level', true);
+  const success = queue.node.setVolume(volume);
+  
+  if (success) {
+    return interaction.reply(`🔊 Volume set to ${volume}%`);
+  } else {
+    return interaction.reply('Failed to set volume');
+  }
+}
+```
+
+### Volume Up/Down Commands
+
+```typescript
+// Volume up
+export async function volumeUp(interaction: ChatInputCommandInteraction) {
+  const queue = useQueue(interaction.guild!);
+  if (!queue) return;
+  
+  const currentVolume = queue.node.volume;
+  const newVolume = Math.min(200, currentVolume + 10);
+  
+  queue.node.setVolume(newVolume);
+  await interaction.reply(`🔊 Volume: ${newVolume}%`);
+}
+
+// Volume down
+export async function volumeDown(interaction: ChatInputCommandInteraction) {
+  const queue = useQueue(interaction.guild!);
+  if (!queue) return;
+  
+  const currentVolume = queue.node.volume;
+  const newVolume = Math.max(0, currentVolume - 10);
+  
+  queue.node.setVolume(newVolume);
+  await interaction.reply(`🔉 Volume: ${newVolume}%`);
+}
+```
+
+## Best Practices
+
+<Warning>
+**Audio Clipping**
+- Volumes above 100% may cause distortion
+- Use equalizer and filters carefully with high volume
+- Monitor for clipping when combining volume boost with bass boost
+</Warning>
+
+<Tip>
+**Recommendations**
+- Keep default volume between 80-100%
+- Use volume fade for smooth transitions
+- Save user volume preferences per guild
+- Normalize volume across different audio sources
+- Consider loudness normalization for playlist playback
+</Tip>
+
+<Note>
+**Technical Details**
+- Volume transformation happens on PCM audio data
+- No quality loss at any volume level
+- Real-time processing with no latency
+- Volume stored as multiplier internally (100% = 1.0)
+</Note>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Audio Filters" icon="waveform" href="/audio/filters">
+    FFmpeg audio filters and effects
+  </Card>
+  <Card title="Equalizer" icon="sliders" href="/audio/equalizer">
+    15-band equalizer configuration
+  </Card>
+  <Card title="Stream Config" icon="gear" href="/audio/stream-config">
+    Configure audio stream processing
+  </Card>
+</CardGroup>

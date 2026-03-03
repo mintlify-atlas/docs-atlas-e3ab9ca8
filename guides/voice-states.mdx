@@ -1,0 +1,281 @@
+---
+title: Voice State Handling
+description: Understanding and customizing voice state management in Discord Player
+icon: microphone
+---
+
+## Overview
+
+Discord Player automatically manages voice state updates, handling scenarios like bot disconnections, empty channels, and server mute/unmute events. You can customize this behavior or implement your own voice state handler.
+
+## Default Voice State Handler
+
+The default handler (`defaultVoiceStateHandler`) manages several key scenarios:
+
+### Bot Disconnection
+
+When the bot is disconnected from a voice channel, the queue is automatically deleted:
+
+```typescript
+// Detected when oldState.channelId exists but newState.channelId is null
+if (isBotState && oldState.channelId && !newState.channelId) {
+  queue.delete();
+  player.events.emit(GuildQueueEvent.Disconnect, queue);
+}
+```
+
+### Empty Channel Management
+
+The handler monitors when users leave the voice channel:
+
+<CodeGroup>
+```typescript leaveOnEmpty
+const queue = player.nodes.create(interaction.guild, {
+  leaveOnEmpty: true,
+  leaveOnEmptyCooldown: 60_000, // 60 seconds
+});
+```
+
+```typescript pauseOnEmpty
+const queue = player.nodes.create(interaction.guild, {
+  pauseOnEmpty: true, // Pause when channel is empty
+});
+```
+</CodeGroup>
+
+### Server Mute/Unmute
+
+The bot automatically pauses when server muted:
+
+```typescript DefaultVoiceStateHandler.ts
+// Handles server mute state changes
+if (newState.serverMute != null && oldState.serverMute !== newState.serverMute) {
+  queue.node.setPaused(newState.serverMute);
+}
+```
+
+### Stage Channel Support
+
+Automatic handling for stage channels:
+
+```typescript DefaultVoiceStateHandler.ts
+if (newState.channel?.type === ChannelType.GuildStageVoice) {
+  if (newState.suppress != null && oldState.suppress !== newState.suppress) {
+    queue.node.setPaused(newState.suppress);
+    if (newState.suppress) {
+      newState.guild.members.me?.voice.setRequestToSpeak(true);
+    }
+  }
+}
+```
+
+## Voice State Events
+
+### Listening to Voice State Updates
+
+```typescript
+player.events.on(GuildQueueEvent.VoiceStateUpdate, (queue, oldState, newState) => {
+  console.log(`Voice state updated in ${queue.guild.name}`);
+  console.log(`Old channel: ${oldState.channelId}`);
+  console.log(`New channel: ${newState.channelId}`);
+});
+```
+
+### Empty Channel Events
+
+```typescript
+// Emitted when all users leave the voice channel
+player.events.on(GuildQueueEvent.EmptyChannel, (queue) => {
+  console.log(`Voice channel is now empty in ${queue.guild.name}`);
+});
+
+// Emitted when users rejoin the voice channel
+player.events.on(GuildQueueEvent.ChannelPopulate, (queue) => {
+  console.log(`Voice channel was repopulated in ${queue.guild.name}`);
+});
+```
+
+### Disconnect Event
+
+```typescript
+player.events.on(GuildQueueEvent.Disconnect, (queue) => {
+  console.log(`Bot was disconnected from ${queue.guild.name}`);
+  // Queue is automatically deleted
+});
+```
+
+## Custom Voice State Handler
+
+You can override the default voice state handler:
+
+```typescript
+import { VoiceState } from 'discord.js';
+import { Player, GuildQueue } from 'discord-player';
+
+player.onVoiceStateUpdate((player, queue, oldState, newState) => {
+  // Your custom logic here
+  const isBotState = newState.member?.id === newState.guild.members.me?.id;
+  
+  if (isBotState && oldState.channelId && !newState.channelId) {
+    console.log('Bot was disconnected!');
+    queue.delete();
+  }
+  
+  // Handle other scenarios...
+});
+```
+
+<Warning>
+When implementing a custom handler, you're responsible for all voice state logic including disconnections, empty channels, and server mute handling.
+</Warning>
+
+## Voice State Handler Lock
+
+Control whether custom handlers can override the default behavior:
+
+```typescript
+// Lock the handler (always use default, ignore custom implementations)
+player.lockVoiceStateHandler();
+
+// Unlock the handler (allow custom implementations)
+player.unlockVoiceStateHandler();
+
+// Check if locked
+const isLocked = player.isVoiceStateHandlerLocked();
+```
+
+Or set it during initialization:
+
+```typescript
+const player = new Player(client, {
+  lockVoiceStateHandler: true,
+});
+```
+
+## Event-Based Voice State Handling
+
+Consume the `VoiceStateUpdate` event without disabling the default handler:
+
+```typescript
+player.events.on(GuildQueueEvent.VoiceStateUpdate, (queue, oldState, newState) => {
+  // Your custom logic runs alongside the default handler
+  if (oldState.channelId !== newState.channelId) {
+    console.log('User moved channels');
+  }
+  
+  // Default handler still runs unless lockVoiceStateHandler is enabled
+});
+```
+
+<Info>
+If you consume the `VoiceStateUpdate` event and `lockVoiceStateHandler` is `false`, the default handler will be disabled. Set `lockVoiceStateHandler: true` to run both.
+</Info>
+
+## Timeout Management
+
+The voice state handler uses internal timeouts tracked in `queue.timeouts`:
+
+```typescript
+// Example: Clear empty channel timeout
+const emptyTimeout = queue.timeouts.get(`empty_${guildId}`);
+if (emptyTimeout) {
+  clearTimeout(emptyTimeout);
+  queue.timeouts.delete(`empty_${guildId}`);
+}
+```
+
+## Configuration Options
+
+### Queue-Level Options
+
+```typescript GuildQueue.ts
+const queue = player.nodes.create(interaction.guild, {
+  // Leave when channel is empty
+  leaveOnEmpty: true,
+  leaveOnEmptyCooldown: 60_000, // 1 minute
+  
+  // Leave when queue ends
+  leaveOnEnd: true,
+  leaveOnEndCooldown: 30_000, // 30 seconds
+  
+  // Leave when stopped
+  leaveOnStop: true,
+  leaveOnStopCooldown: 5_000, // 5 seconds
+  
+  // Pause when channel is empty
+  pauseOnEmpty: true,
+  
+  // Self deaf (recommended)
+  selfDeaf: true,
+});
+```
+
+## Debugging Voice States
+
+Enable debug mode to see voice state handling in action:
+
+```typescript
+player.events.on(GuildQueueEvent.Debug, (queue, message) => {
+  console.log(`[${queue.guild.name}] ${message}`);
+});
+```
+
+Debug output examples:
+```
+[Guild Name] Voice channel is empty and options#pauseOnEmpty is true, pausing...
+[Guild Name] Voice channel is not empty and options#pauseOnEmpty is true, resuming...
+[Guild Name] Connecting to voice channel Main Voice (ID: 123456789)
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Default Handler" icon="check">
+    The default handler covers most use cases. Only override if you have specific requirements.
+  </Card>
+  
+  <Card title="Set Cooldowns" icon="clock">
+    Use cooldowns to prevent immediate disconnections when users briefly leave.
+  </Card>
+  
+  <Card title="Enable Self Deaf" icon="volume-mute">
+    Always set `selfDeaf: true` to reduce bandwidth usage.
+  </Card>
+  
+  <Card title="Monitor Events" icon="bell">
+    Listen to `EmptyChannel` and `ChannelPopulate` events for custom notifications.
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+### Prevent Auto-Disconnect
+
+```typescript
+const queue = player.nodes.create(interaction.guild, {
+  leaveOnEmpty: false,
+  leaveOnEnd: false,
+  leaveOnStop: false,
+});
+```
+
+### Smart Pause/Resume
+
+```typescript
+const queue = player.nodes.create(interaction.guild, {
+  pauseOnEmpty: true, // Auto-pause when alone
+  leaveOnEmpty: true,
+  leaveOnEmptyCooldown: 300_000, // Leave after 5 minutes
+});
+```
+
+### Notification on Empty Channel
+
+```typescript
+player.events.on(GuildQueueEvent.EmptyChannel, async (queue) => {
+  const channel = queue.metadata?.channel; // Store channel in metadata
+  if (channel?.isSendable()) {
+    await channel.send('Everyone left! Leaving in 60 seconds...');
+  }
+});
+```

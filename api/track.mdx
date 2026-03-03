@@ -1,0 +1,326 @@
+---
+title: Track
+description: Represents an audio track with metadata
+icon: music
+---
+
+The `Track` class represents a single audio track with metadata like title, author, duration, and URL.
+
+## Properties
+
+<ResponseField name="id" type="string">
+  Unique track identifier (Snowflake)
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  The track title
+</ResponseField>
+
+<ResponseField name="cleanTitle" type="string">
+  Sanitized track title with special characters removed
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Track description
+</ResponseField>
+
+<ResponseField name="author" type="string">
+  Track author/artist name
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Track URL
+</ResponseField>
+
+<ResponseField name="thumbnail" type="string">
+  Track thumbnail URL
+</ResponseField>
+
+<ResponseField name="duration" type="string">
+  Formatted duration (e.g., "3:45")
+</ResponseField>
+
+<ResponseField name="durationMS" type="number">
+  Duration in milliseconds
+</ResponseField>
+
+<ResponseField name="views" type="number">
+  View count
+</ResponseField>
+
+<ResponseField name="requestedBy" type="User | null">
+  The Discord user who requested this track
+</ResponseField>
+
+<ResponseField name="playlist" type="Playlist | null">
+  The playlist this track belongs to (if any)
+</ResponseField>
+
+<ResponseField name="source" type="TrackSource">
+  Track source: "youtube", "soundcloud", "spotify", "apple_music", or "arbitrary"
+</ResponseField>
+
+<ResponseField name="engine" type="any">
+  The audio engine/extractor that provided this track
+</ResponseField>
+
+<ResponseField name="live" type="boolean">
+  Whether this is a live stream
+</ResponseField>
+
+<ResponseField name="extractor" type="BaseExtractor | null">
+  The extractor that fetched this track
+</ResponseField>
+
+<ResponseField name="queryType" type="SearchQueryType | null">
+  The query type used to find this track
+</ResponseField>
+
+<ResponseField name="metadata" type="any">
+  Additional metadata attached to this track
+</ResponseField>
+
+<ResponseField name="raw" type="any">
+  Raw data from the extractor
+</ResponseField>
+
+## Methods
+
+### toJSON()
+
+Convert track to JSON:
+
+```typescript
+const json = track.toJSON();
+console.log(json.title, json.durationMS);
+```
+
+<ParamField path="hidePlaylist" type="boolean" default="false">
+  Whether to exclude playlist data
+</ParamField>
+
+<ResponseField name="returns" type="TrackJSON">
+  JSON representation of the track
+</ResponseField>
+
+### toString()
+
+Get string representation:
+
+```typescript
+const str = track.toString();
+// "Track: Despacito by Luis Fonsi (3:45)"
+```
+
+<ResponseField name="returns" type="string">
+  Formatted track string
+</ResponseField>
+
+### toHyperlink()
+
+Create a markdown hyperlink:
+
+```typescript
+const link = track.toHyperlink();
+// "[Despacito](https://youtube.com/watch?v=...)"
+```
+
+<ResponseField name="returns" type="string">
+  Markdown hyperlink
+</ResponseField>
+
+### serialize()
+
+Serialize for storage:
+
+```typescript
+const serialized = track.serialize();
+// Store in database
+await db.tracks.save(serialized);
+```
+
+<ResponseField name="returns" type="SerializedTrack">
+  Serialized track data
+</ResponseField>
+
+### deserialize()
+
+Deserialize from storage:
+
+```typescript
+const data = await db.tracks.get(trackId);
+const track = Track.fromSerialized(player, data);
+```
+
+<ParamField path="player" type="Player" required>
+  Player instance
+</ParamField>
+
+<ParamField path="data" type="SerializedTrack" required>
+  Serialized track data
+</ParamField>
+
+<ResponseField name="returns" type="Track">
+  Reconstructed track instance
+</ResponseField>
+
+### play()
+
+Play this track:
+
+```typescript
+await track.play(voiceChannel, {
+  nodeOptions: { metadata: interaction }
+});
+```
+
+<ParamField path="channel" type="GuildVoiceChannelResolvable" required>
+  Voice channel to play in
+</ParamField>
+
+<ParamField path="options" type="PlayerNodeInitializerOptions">
+  Play options
+</ParamField>
+
+<ResponseField name="returns" type="Promise<PlayerNodeInitializationResult>">
+  Play result with queue info
+</ResponseField>
+
+## Creating Tracks
+
+### From Search
+
+```typescript
+const result = await player.search('despacito', {
+  requestedBy: interaction.user
+});
+
+const track = result.tracks[0];
+```
+
+### From Raw Data
+
+```typescript
+const track = new Track(player, {
+  title: 'My Track',
+  author: 'Artist Name',
+  url: 'https://example.com/track',
+  thumbnail: 'https://example.com/thumb.jpg',
+  duration: '3:45',
+  views: 1000,
+  requestedBy: interaction.user,
+  source: 'arbitrary'
+});
+```
+
+## Track Metadata
+
+Access and modify metadata:
+
+```typescript
+// Set metadata
+track.metadata = {
+  channelId: interaction.channelId,
+  requestedAt: Date.now()
+};
+
+// Access metadata
+const channelId = track.metadata.channelId;
+```
+
+## Example Usage
+
+```typescript
+import { useQueue } from 'discord-player';
+
+const queue = useQueue(interaction.guildId);
+const track = queue.currentTrack;
+
+if (!track) {
+  return interaction.reply('No track is playing!');
+}
+
+// Display track info
+const embed = new EmbedBuilder()
+  .setTitle(track.title)
+  .setDescription(track.description)
+  .setAuthor({ name: track.author })
+  .setURL(track.url)
+  .setThumbnail(track.thumbnail)
+  .addFields(
+    { name: 'Duration', value: track.duration, inline: true },
+    { name: 'Source', value: track.source, inline: true },
+    { name: 'Views', value: track.views.toLocaleString(), inline: true },
+    { name: 'Live', value: track.live ? 'Yes' : 'No', inline: true },
+    { name: 'Requested By', value: track.requestedBy?.tag || 'Unknown', inline: true }
+  );
+
+if (track.playlist) {
+  embed.addFields({
+    name: 'Playlist',
+    value: `[${track.playlist.title}](${track.playlist.url})`
+  });
+}
+
+await interaction.reply({ embeds: [embed] });
+
+// Create hyperlink for text
+const link = track.toHyperlink();
+await interaction.reply(`Now playing: ${link}`);
+
+// Serialize for favorites
+const serialized = track.serialize();
+await db.userFavorites.add(interaction.user.id, serialized);
+
+// Later, load favorite
+const data = await db.userFavorites.get(interaction.user.id, favoriteId);
+const favoriteTrack = Track.fromSerialized(player, data);
+await favoriteTrack.play(voiceChannel);
+```
+
+## TypeScript Types
+
+```typescript
+type TrackSource = 'soundcloud' | 'youtube' | 'spotify' | 'apple_music' | 'arbitrary';
+
+type TrackResolvable = Track | string | number;
+
+interface TrackJSON {
+  id: string;
+  title: string;
+  description: string;
+  author: string;
+  url: string;
+  thumbnail: string;
+  duration: string;
+  durationMS: number;
+  views: number;
+  requestedBy: string | null;
+  playlist: PlaylistJSON | null;
+}
+
+interface RawTrackData {
+  title: string;
+  description: string;
+  author: string;
+  url: string;
+  thumbnail: string;
+  duration: string;
+  views: number;
+  requestedBy?: User | null;
+  playlist?: Playlist;
+  source?: TrackSource;
+  engine?: any;
+  live?: boolean;
+  raw?: any;
+  queryType?: SearchQueryType;
+  cleanTitle?: string;
+}
+```
+
+## Related
+
+- [Playlist](/api/playlist)
+- [SearchResult](/api/search-result)
+- [GuildQueue](/api/guild-queue)
+- [Serialization](/advanced/serialization)

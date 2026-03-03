@@ -1,0 +1,431 @@
+---
+title: GuildQueue
+description: Manages playback queue and audio for a specific guild
+icon: list
+---
+
+The `GuildQueue` class represents a music queue for a specific guild. It manages tracks, playback, voice connections, and audio processing.
+
+## Getting a Queue
+
+```typescript
+import { useQueue } from 'discord-player';
+
+const queue = useQueue(guild.id);
+// or
+const queue = player.nodes.get(guild.id);
+```
+
+## Properties
+
+<ResponseField name="id" type="string">
+  The unique identifier of this queue (Snowflake)
+</ResponseField>
+
+<ResponseField name="guild" type="Guild">
+  The guild this queue belongs to
+</ResponseField>
+
+<ResponseField name="player" type="Player">
+  The player instance
+</ResponseField>
+
+<ResponseField name="tracks" type="Queue<Track>">
+  The track queue
+</ResponseField>
+
+<ResponseField name="history" type="GuildQueueHistory">
+  The queue history manager
+</ResponseField>
+
+<ResponseField name="connection" type="VoiceConnection | null">
+  The voice connection
+</ResponseField>
+
+<ResponseField name="channel" type="VoiceBasedChannel | null">
+  The voice channel
+</ResponseField>
+
+<ResponseField name="dispatcher" type="StreamDispatcher | null">
+  The audio stream dispatcher
+</ResponseField>
+
+<ResponseField name="filters" type="GuildQueueAudioFilters">
+  Audio filters manager
+</ResponseField>
+
+<ResponseField name="node" type="GuildQueuePlayerNode">
+  The player node (playback control)
+</ResponseField>
+
+<ResponseField name="metadata" type="T">
+  Custom metadata attached to this queue
+</ResponseField>
+
+<ResponseField name="repeatMode" type="QueueRepeatMode">
+  Current repeat mode (OFF, TRACK, QUEUE, AUTOPLAY)
+</ResponseField>
+
+<ResponseField name="isPlaying" type="boolean">
+  Whether audio is currently playing
+</ResponseField>
+
+<ResponseField name="isEmpty" type="boolean">
+  Whether the queue is empty
+</ResponseField>
+
+<ResponseField name="currentTrack" type="Track | null">
+  The currently playing track
+</ResponseField>
+
+<ResponseField name="size" type="number">
+  Number of tracks in the queue
+</ResponseField>
+
+## Playback Control Methods
+
+### play()
+
+Start playing a track:
+
+```typescript
+await queue.play(track);
+```
+
+<ParamField path="track" type="Track | null" required>
+  The track to play, or null to play next in queue
+</ParamField>
+
+<ParamField path="options" type="PlayOptions">
+  Play options (seek, immediate, filtersUpdate, encoderArgs)
+</ParamField>
+
+### pause()
+
+Pause playback:
+
+```typescript
+queue.node.pause();
+```
+
+<ResponseField name="returns" type="boolean">
+  True if paused successfully
+</ResponseField>
+
+### resume()
+
+Resume playback:
+
+```typescript
+queue.node.resume();
+```
+
+<ResponseField name="returns" type="boolean">
+  True if resumed successfully
+</ResponseField>
+
+### skip()
+
+Skip the current track:
+
+```typescript
+const skipped = await queue.node.skip();
+```
+
+<ResponseField name="returns" type="Promise<boolean>">
+  True if skipped successfully
+</ResponseField>
+
+### stop()
+
+Stop playback and clear queue:
+
+```typescript
+queue.node.stop();
+```
+
+### seek()
+
+Seek to a position:
+
+```typescript
+await queue.node.seek(60000); // Seek to 1 minute
+```
+
+<ParamField path="position" type="number" required>
+  Position in milliseconds
+</ParamField>
+
+<ResponseField name="returns" type="Promise<boolean>">
+  True if seek was successful
+</ResponseField>
+
+## Track Management Methods
+
+### addTrack()
+
+Add a track to the queue:
+
+```typescript
+queue.addTrack(track);
+```
+
+<ParamField path="track" type="Track | Track[]" required>
+  Track or array of tracks to add
+</ParamField>
+
+### insertTrack()
+
+Insert a track at a specific position:
+
+```typescript
+queue.insertTrack(track, 0); // Insert at front
+```
+
+<ParamField path="track" type="Track | Track[]" required>
+  Track or array of tracks to insert
+</ParamField>
+
+<ParamField path="index" type="number" default="0">
+  Position to insert at
+</ParamField>
+
+### removeTrack()
+
+Remove a track:
+
+```typescript
+const removed = queue.removeTrack(2); // Remove track at index 2
+// or
+const removed = queue.removeTrack(track); // Remove specific track
+```
+
+<ParamField path="track" type="TrackResolvable" required>
+  Track, track ID, or index
+</ParamField>
+
+<ResponseField name="returns" type="Track | null">
+  The removed track
+</ResponseField>
+
+### clear()
+
+Clear all tracks from queue:
+
+```typescript
+queue.tracks.clear();
+```
+
+### shuffle()
+
+Shuffle the queue:
+
+```typescript
+queue.tracks.shuffle();
+```
+
+<ResponseField name="returns" type="Track[]">
+  The shuffled tracks
+</ResponseField>
+
+## Queue State Methods
+
+### setRepeatMode()
+
+Set repeat mode:
+
+```typescript
+import { QueueRepeatMode } from 'discord-player';
+
+queue.setRepeatMode(QueueRepeatMode.TRACK);
+```
+
+<ParamField path="mode" type="QueueRepeatMode" required>
+  The repeat mode: OFF (0), TRACK (1), QUEUE (2), AUTOPLAY (3)
+</ParamField>
+
+### setVolume()
+
+Set playback volume:
+
+```typescript
+queue.node.setVolume(50); // 50%
+```
+
+<ParamField path="volume" type="number" required>
+  Volume level (0-200)
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  True if volume was set
+</ResponseField>
+
+### enableDynamicShuffle()
+
+Enable dynamic shuffle mode:
+
+```typescript
+queue.enableDynamicShuffle();
+```
+
+### disableDynamicShuffle()
+
+Disable dynamic shuffle mode:
+
+```typescript
+queue.disableDynamicShuffle();
+```
+
+## Voice Connection Methods
+
+### connect()
+
+Connect to a voice channel:
+
+```typescript
+await queue.connect(voiceChannel);
+```
+
+<ParamField path="channel" type="GuildVoiceChannelResolvable" required>
+  The voice channel to connect to
+</ParamField>
+
+<ResponseField name="returns" type="Promise<GuildQueue>">
+  The queue instance
+</ResponseField>
+
+### disconnect()
+
+Disconnect from voice channel:
+
+```typescript
+queue.disconnect();
+```
+
+### delete()
+
+Delete this queue:
+
+```typescript
+queue.delete();
+```
+
+## Utility Methods
+
+### getTimestamp()
+
+Get current playback timestamp:
+
+```typescript
+const timestamp = queue.node.getTimestamp();
+console.log(`${timestamp.current.label} / ${timestamp.total.label}`);
+```
+
+<ResponseField name="returns" type="TrackTimestamp">
+  Object with current and total time info
+</ResponseField>
+
+### createProgressBar()
+
+Create a progress bar:
+
+```typescript
+const bar = queue.node.createProgressBar();
+console.log(bar); // ▬▬▬▬▬▬▬🔘▬▬▬▬▬▬▬▬▬▬
+```
+
+<ParamField path="options" type="ProgressBarOptions">
+  Progress bar customization options
+</ParamField>
+
+<ResponseField name="returns" type="string">
+  The formatted progress bar
+</ResponseField>
+
+### isEmpty()
+
+Check if queue is empty:
+
+```typescript
+if (queue.isEmpty()) {
+  console.log('Queue is empty');
+}
+```
+
+<ResponseField name="returns" type="boolean">
+  True if queue has no tracks
+</ResponseField>
+
+### tasksQueue
+
+Access the async task queue:
+
+```typescript
+await queue.tasksQueue.acquire();
+try {
+  // Critical section
+} finally {
+  queue.tasksQueue.release();
+}
+```
+
+## Example
+
+Complete queue management example:
+
+```typescript
+import { useQueue } from 'discord-player';
+
+// Get the queue
+const queue = useQueue(interaction.guildId);
+
+if (!queue) {
+  return interaction.reply('No music is being played!');
+}
+
+// Current track info
+const track = queue.currentTrack;
+console.log(`Now playing: ${track.cleanTitle}`);
+console.log(`Duration: ${track.duration}`);
+
+// Playback control
+queue.node.pause();
+queue.node.resume();
+await queue.node.skip();
+await queue.node.seek(30000);
+queue.node.setVolume(75);
+
+// Queue management
+queue.addTrack(newTrack);
+queue.insertTrack(track, 0);
+queue.removeTrack(2);
+queue.tracks.shuffle();
+queue.tracks.clear();
+
+// Repeat modes
+queue.setRepeatMode(QueueRepeatMode.QUEUE);
+
+// History
+const prev = queue.history.previousTrack;
+await queue.history.back();
+
+// Filters
+await queue.filters.ffmpeg.toggle('bassboost');
+queue.filters.equalizer.setEQ([
+  { band: 0, gain: 0.25 },
+  { band: 1, gain: 0.25 }
+]);
+
+// Connection
+const timestamp = queue.node.getTimestamp();
+const bar = queue.node.createProgressBar();
+
+console.log(`${timestamp.current.label} ${bar} ${timestamp.total.label}`);
+```
+
+## Related
+
+- [GuildQueuePlayerNode](/api/guild-queue-player-node)
+- [GuildQueueHistory](/api/guild-queue-history)
+- [GuildQueueAudioFilters](/api/guild-queue-audio-filters)
+- [Track](/api/track)

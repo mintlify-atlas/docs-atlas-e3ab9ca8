@@ -1,0 +1,374 @@
+---
+title: Queue Serialization
+description: Serialize and deserialize tracks and playlists for persistent storage
+icon: floppy-disk
+---
+
+## Overview
+
+Discord Player provides utilities to serialize tracks and playlists into JSON-compatible format for storage and later restoration. This is useful for saving queue state, creating favorites systems, or implementing cross-session queue persistence.
+
+## Serialization Utilities
+
+The `serde` module provides functions to serialize, deserialize, encode, and decode tracks and playlists.
+
+```typescript
+import { serialize, deserialize, encode, decode } from 'discord-player';
+```
+
+## Serializing Tracks
+
+### Basic Serialization
+
+Convert a track to a serializable object:
+
+```typescript
+import { serialize } from 'discord-player';
+
+const track = queue.currentTrack;
+
+// Serialize to JSON-compatible object
+const serialized = serialize(track);
+console.log(serialized);
+// {
+//   $type: 'track',
+//   title: 'Song Name',
+//   author: 'Artist Name',
+//   url: 'https://...',
+//   ...
+// }
+```
+
+### Track Method
+
+Tracks have a built-in `serialize()` method:
+
+```typescript
+const track = queue.currentTrack;
+const serialized = track.serialize();
+```
+
+### Serialized Track Structure
+
+The serialized track includes:
+
+<ResponseField name="$type" type="'track'">
+  Type identifier for deserialization
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Track title
+</ResponseField>
+
+<ResponseField name="author" type="string">
+  Track author/artist
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Track URL
+</ResponseField>
+
+<ResponseField name="duration" type="string">
+  Track duration
+</ResponseField>
+
+<ResponseField name="thumbnail" type="string">
+  Thumbnail URL
+</ResponseField>
+
+And other track metadata fields.
+
+## Serializing Playlists
+
+### Basic Serialization
+
+```typescript
+import { serialize } from 'discord-player';
+
+const playlist = searchResult.playlist;
+const serialized = serialize(playlist);
+console.log(serialized);
+// {
+//   $type: 'playlist',
+//   title: 'Playlist Name',
+//   tracks: [...],
+//   ...
+// }
+```
+
+### Playlist Method
+
+```typescript
+const playlist = searchResult.playlist;
+const serialized = playlist.serialize();
+```
+
+### Serialized Playlist Structure
+
+<ResponseField name="$type" type="'playlist'">
+  Type identifier for deserialization
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Playlist title
+</ResponseField>
+
+<ResponseField name="tracks" type="SerializedTrack[]">
+  Array of serialized tracks
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Playlist URL
+</ResponseField>
+
+<ResponseField name="thumbnail" type="string">
+  Playlist thumbnail URL
+</ResponseField>
+
+## Deserializing
+
+Convert serialized data back into Track or Playlist objects:
+
+```typescript
+import { deserialize } from 'discord-player';
+
+// Deserialize a track
+const serializedTrack = { $type: 'track', title: '...', /* ... */ };
+const track = deserialize(player, serializedTrack);
+
+// Deserialize a playlist
+const serializedPlaylist = { $type: 'playlist', title: '...', /* ... */ };
+const playlist = deserialize(player, serializedPlaylist);
+```
+
+### Static Methods
+
+Tracks and playlists provide static deserialization methods:
+
+```typescript
+import { Track, Playlist } from 'discord-player';
+
+// Deserialize track
+const track = Track.fromSerialized(player, serializedTrack);
+
+// Deserialize playlist
+const playlist = Playlist.fromSerialized(player, serializedPlaylist);
+```
+
+## Encoding and Decoding
+
+For storage or transmission, you can encode serialized data to base64:
+
+### Encoding
+
+```typescript
+import { encode } from 'discord-player';
+
+const serialized = track.serialize();
+const encoded = encode(serialized);
+// Returns base64 string: "eyIkdHlwZSI6InRyYWNrIiwidGl0bGUiOi4uLn0="
+```
+
+### Decoding
+
+```typescript
+import { decode } from 'discord-player';
+
+const encoded = "eyIkdHlwZSI6InRyYWNrIiwidGl0bGUiOi4uLn0=";
+const decoded = decode(encoded);
+// Returns deserialized object
+```
+
+## Complete Example: Queue Persistence
+
+Save and restore queue state across bot restarts:
+
+```typescript
+import { serialize, deserialize, encode, decode } from 'discord-player';
+import fs from 'fs/promises';
+
+// Save queue
+async function saveQueue(queue) {
+  const queueData = {
+    tracks: queue.tracks.data.map(track => serialize(track)),
+    currentTrack: queue.currentTrack ? serialize(queue.currentTrack) : null,
+    volume: queue.node.volume,
+    repeatMode: queue.repeatMode
+  };
+  
+  await fs.writeFile(
+    `queue-${queue.guild.id}.json`,
+    JSON.stringify(queueData, null, 2)
+  );
+  
+  console.log('Queue saved!');
+}
+
+// Restore queue
+async function restoreQueue(player, guildId, channel) {
+  const data = await fs.readFile(`queue-${guildId}.json`, 'utf-8');
+  const queueData = JSON.parse(data);
+  
+  // Create new queue
+  const queue = player.queues.create(guildId);
+  await queue.connect(channel);
+  
+  // Restore tracks
+  const tracks = queueData.tracks.map(t => deserialize(player, t));
+  queue.addTrack(tracks);
+  
+  // Restore settings
+  queue.node.setVolume(queueData.volume);
+  queue.setRepeatMode(queueData.repeatMode);
+  
+  // Play current track if exists
+  if (queueData.currentTrack) {
+    const current = deserialize(player, queueData.currentTrack);
+    await queue.play(current);
+  } else if (tracks.length > 0) {
+    await queue.node.play();
+  }
+  
+  console.log('Queue restored!');
+}
+```
+
+## Database Storage Example
+
+Store serialized tracks in a database:
+
+```typescript
+import { serialize, deserialize } from 'discord-player';
+
+// Save to database
+async function saveFavorite(userId, track) {
+  const serialized = serialize(track);
+  
+  await db.favorites.create({
+    userId,
+    trackData: JSON.stringify(serialized),
+    addedAt: new Date()
+  });
+}
+
+// Load from database
+async function getFavorites(player, userId) {
+  const favorites = await db.favorites.findMany({
+    where: { userId }
+  });
+  
+  return favorites.map(fav => {
+    const serialized = JSON.parse(fav.trackData);
+    return deserialize(player, serialized);
+  });
+}
+
+// Play a favorite
+async function playFavorite(queue, player, userId, index) {
+  const favorites = await getFavorites(player, userId);
+  const track = favorites[index];
+  
+  if (track) {
+    queue.addTrack(track);
+    if (!queue.isPlaying()) {
+      await queue.node.play();
+    }
+  }
+}
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Queue Persistence" icon="save">
+    Save queue state across bot restarts
+  </Card>
+  <Card title="Favorites System" icon="star">
+    Let users save their favorite tracks
+  </Card>
+  <Card title="Playlist Export" icon="file-export">
+    Export playlists to JSON files
+  </Card>
+  <Card title="Queue Sharing" icon="share">
+    Share queue configurations between servers
+  </Card>
+</CardGroup>
+
+## Type Safety
+
+The serialization system is type-safe:
+
+```typescript
+export enum SerializedType {
+  Track = 'track',
+  Playlist = 'playlist',
+}
+
+export type Encodable = SerializedTrack | SerializedPlaylist;
+```
+
+The `deserialize` function automatically detects the type:
+
+```typescript
+function deserialize(player: Player, data: Encodable) {
+  if (data.$type === 'track') return Track.fromSerialized(player, data);
+  if (data.$type === 'playlist') return Playlist.fromSerialized(player, data);
+  
+  throw new DeserializationError();
+}
+```
+
+## Error Handling
+
+<CodeGroup>
+```typescript SerializationError
+try {
+  const serialized = serialize(invalidData);
+} catch (error) {
+  if (error instanceof SerializationError) {
+    console.error('Failed to serialize data');
+  }
+}
+```
+
+```typescript DeserializationError
+try {
+  const track = deserialize(player, corruptedData);
+} catch (error) {
+  if (error instanceof DeserializationError) {
+    console.error('Failed to deserialize data');
+  }
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Validate serialized data">
+    Always validate serialized data before deserializing, especially if it comes from user input or external storage.
+  </Accordion>
+  
+  <Accordion title="Version your data">
+    Include a version field in your serialized data to handle format changes gracefully.
+  </Accordion>
+  
+  <Accordion title="Handle missing fields">
+    Deserialize may fail if required fields are missing. Use try-catch blocks appropriately.
+  </Accordion>
+  
+  <Accordion title="Compress for storage">
+    For large playlists, consider compressing the encoded string before storage.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Queue API" icon="list" href="/api/queue">
+    Learn about queue management
+  </Card>
+  <Card title="Track Object" icon="music" href="/api/track">
+    Explore track properties
+  </Card>
+</CardGroup>

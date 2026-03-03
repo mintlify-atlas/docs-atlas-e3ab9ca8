@@ -1,0 +1,601 @@
+---
+title: Stream Configuration
+description: Configure audio stream processing, DSP filters, and playback options
+icon: gear
+---
+
+## Overview
+
+Discord Player's stream configuration system provides fine-grained control over audio processing. Configure DSP filters, compressor, reverb, resampler, and other advanced audio features through the `StreamConfig` interface.
+
+## Stream Config Interface
+
+```typescript
+interface StreamConfig {
+  dispatcherConfig: CreateStreamOps;
+  playerConfig: ResourcePlayOptions;
+}
+```
+
+## Dispatcher Configuration
+
+### Complete Options
+
+```typescript
+interface CreateStreamOps {
+  type?: StreamType;
+  data: Track;
+  
+  // Feature toggles
+  disableVolume?: boolean;
+  disableEqualizer?: boolean;
+  disableBiquad?: boolean;
+  disableCompressor?: boolean;
+  disableResampler?: boolean;
+  disableReverb?: boolean;
+  disableSeeker?: boolean;
+  disableFilters?: boolean;
+  skipFFmpeg?: boolean;
+  
+  // Audio processing
+  eq?: EqualizerBand[];
+  biquadFilter?: BiquadFilters;
+  defaultFilters?: PCMFilters[];
+  volume?: number;
+  sampleRate?: number;
+  sampleRateFilters?: CommonResamplerFilterPreset;
+  
+  // Advanced effects
+  compressor?: {
+    threshold: number;
+    ratio: number;
+    attack: number;
+    release: number;
+    makeupGain: number;
+    kneeWidth: number;
+  };
+  reverb?: {
+    roomSize: number;
+    damping: number;
+    wetLevel: number;
+    dryLevel: number;
+  };
+  seeker?: {
+    seekTarget: number | null;
+    totalDuration: number;
+  };
+}
+```
+
+## Queue Options
+
+### Disable Features
+
+Configure which audio processors to disable:
+
+```typescript
+const queue = player.queues.create(guild, {
+  disableVolume: false,      // Enable volume control
+  disableEqualizer: false,   // Enable 15-band EQ
+  disableBiquad: false,      // Enable biquad filters
+  disableFilterer: false,    // Enable PCM filters
+  disableResampler: false,   // Enable sample rate conversion
+  disableCompressor: false,  // Enable dynamic range compression
+  disableReverb: false,      // Enable reverb effect
+  disableSeeker: false       // Enable precise seeking
+});
+```
+
+### Skip FFmpeg
+
+```typescript
+const player = new Player(client, {
+  skipFFmpeg: true  // Skip FFmpeg when possible for better performance
+});
+
+const queue = player.queues.create(guild);
+// FFmpeg only used when filters are applied
+```
+
+## Compressor Configuration
+
+### Dynamic Range Compression
+
+```typescript
+interface CompressorParameters {
+  threshold: number;   // dB threshold (-100 to 0)
+  ratio: number;       // Compression ratio (1 to 20)
+  attack: number;      // Attack time in ms
+  release: number;     // Release time in ms
+  makeupGain: number;  // Output gain in dB
+  kneeWidth: number;   // Soft knee width in dB
+}
+```
+
+### Usage
+
+```typescript
+player.events.on('willPlayTrack', (queue, track, config, resolve) => {
+  config.dispatcherConfig.compressor = {
+    threshold: -24,      // Compress above -24dB
+    ratio: 4,            // 4:1 compression ratio
+    attack: 5,           // 5ms attack
+    release: 50,         // 50ms release
+    makeupGain: 6,       // +6dB makeup gain
+    kneeWidth: 6         // 6dB soft knee
+  };
+  
+  resolve();
+});
+```
+
+### Compressor Presets
+
+```typescript
+// Gentle compression
+const gentleCompressor = {
+  threshold: -20,
+  ratio: 2,
+  attack: 10,
+  release: 100,
+  makeupGain: 3,
+  kneeWidth: 6
+};
+
+// Heavy compression
+const heavyCompressor = {
+  threshold: -30,
+  ratio: 8,
+  attack: 2,
+  release: 30,
+  makeupGain: 12,
+  kneeWidth: 3
+};
+
+// Broadcast limiter
+const limiter = {
+  threshold: -6,
+  ratio: 20,
+  attack: 0.5,
+  release: 10,
+  makeupGain: 0,
+  kneeWidth: 0
+};
+```
+
+## Reverb Configuration
+
+### Reverb Parameters
+
+```typescript
+interface ReverbParameters {
+  roomSize: number;    // Room size (0.0 to 1.0)
+  damping: number;     // High frequency damping (0.0 to 1.0)
+  wetLevel: number;    // Reverb level (0.0 to 1.0)
+  dryLevel: number;    // Direct signal level (0.0 to 1.0)
+}
+```
+
+### Usage
+
+```typescript
+player.events.on('willPlayTrack', (queue, track, config, resolve) => {
+  config.dispatcherConfig.reverb = {
+    roomSize: 0.5,     // Medium room
+    damping: 0.5,      // Moderate damping
+    wetLevel: 0.33,    // 33% reverb
+    dryLevel: 0.4      // 40% dry signal
+  };
+  
+  resolve();
+});
+```
+
+### Reverb Presets
+
+```typescript
+// Small room
+const smallRoom = {
+  roomSize: 0.2,
+  damping: 0.7,
+  wetLevel: 0.2,
+  dryLevel: 0.8
+};
+
+// Large hall
+const largeHall = {
+  roomSize: 0.9,
+  damping: 0.3,
+  wetLevel: 0.5,
+  dryLevel: 0.5
+};
+
+// Cathedral
+const cathedral = {
+  roomSize: 1.0,
+  damping: 0.2,
+  wetLevel: 0.6,
+  dryLevel: 0.4
+};
+
+// Plate reverb
+const plate = {
+  roomSize: 0.5,
+  damping: 0.6,
+  wetLevel: 0.4,
+  dryLevel: 0.6
+};
+```
+
+## Resampler Configuration
+
+### Sample Rate Conversion
+
+```typescript
+const queue = player.queues.create(guild, {
+  resampler: 44100  // Convert to 44.1kHz
+});
+```
+
+### With Filters
+
+```typescript
+interface ResampleParameters {
+  inputSampleRate: number;   // Source sample rate (usually 48000)
+  targetSampleRate: number;  // Target sample rate
+  disabled?: boolean;
+}
+```
+
+### Common Sample Rates
+
+<CardGroup cols={2}>
+  <Card title="48 kHz" icon="wave-square">
+    Default Discord rate (best quality)
+  </Card>
+  <Card title="44.1 kHz" icon="music">
+    CD quality
+  </Card>
+  <Card title="32 kHz" icon="signal">
+    Lower bandwidth
+  </Card>
+  <Card title="22.05 kHz" icon="signal-weak">
+    Low bandwidth
+  </Card>
+</CardGroup>
+
+## Seeker Configuration
+
+### PCM-level Seeking
+
+```typescript
+interface SeekerParameters {
+  seekTarget: number | null;    // Target position in ms
+  totalDuration: number;         // Total track duration
+  sampleRate: number;            // Sample rate (48000)
+  channels: number;              // Channel count (2)
+  disabled?: boolean;
+}
+```
+
+### Automatic Configuration
+
+The seeker is automatically configured during playback:
+
+```typescript
+config.dispatcherConfig.seeker = {
+  seekTarget: options.transitionMode && options.seek != null
+    ? options.seek
+    : null,
+  totalDuration: track.durationMS ?? 0
+};
+```
+
+## Biquad Filters
+
+### Available Filters
+
+```typescript
+type BiquadFilters = 
+  | 'lowpass'      // Low-pass filter
+  | 'highpass'     // High-pass filter
+  | 'bandpass'     // Band-pass filter
+  | 'notch'        // Notch filter
+  | 'allpass'      // All-pass filter
+  | 'peaking'      // Peaking EQ
+  | 'lowshelf'     // Low shelf
+  | 'highshelf';   // High shelf
+```
+
+### Configuration
+
+```typescript
+interface BiquadSetFilterProps {
+  f0: number;    // Center frequency in Hz
+  fs: number;    // Sample rate
+  Q: number;     // Quality factor
+  gain?: number; // Gain in dB (for peaking, shelves)
+}
+```
+
+### Usage
+
+```typescript
+// Apply low-pass filter at 5000 Hz
+queue.filters.biquad?.setFilter('lowpass', {
+  f0: 5000,
+  fs: 48000,
+  Q: 0.707
+});
+
+// Apply peaking EQ at 1000 Hz with +6dB gain
+queue.filters.biquad?.setFilter('peaking', {
+  f0: 1000,
+  fs: 48000,
+  Q: 1.0,
+  gain: 6
+});
+```
+
+## willPlayTrack Event
+
+### Modify Stream Config
+
+The `willPlayTrack` event allows you to modify stream configuration before playback:
+
+```typescript
+player.events.on('willPlayTrack', (queue, track, config, resolve) => {
+  // Modify dispatcher config
+  config.dispatcherConfig.volume = 80;
+  config.dispatcherConfig.eq = EqualizerConfigurationPreset.Rock;
+  config.dispatcherConfig.compressor = {
+    threshold: -24,
+    ratio: 4,
+    attack: 5,
+    release: 50,
+    makeupGain: 6,
+    kneeWidth: 6
+  };
+  
+  // Modify player config
+  config.playerConfig.seek = 30000; // Start at 30 seconds
+  
+  // Must call resolve when done
+  resolve();
+});
+```
+
+### Async Configuration
+
+```typescript
+player.events.on('willPlayTrack', async (queue, track, config, resolve) => {
+  // Load saved settings
+  const settings = await loadUserSettings(queue.guild.id);
+  
+  config.dispatcherConfig.volume = settings.volume;
+  config.dispatcherConfig.eq = settings.eqPreset;
+  
+  resolve();
+});
+```
+
+## Player Config
+
+### Resource Play Options
+
+```typescript
+interface ResourcePlayOptions {
+  queue?: boolean;          // Add to queue instead of playing
+  seek?: number;            // Seek to position in ms
+  transitionMode?: boolean; // Smooth transition mode
+}
+```
+
+### Usage
+
+```typescript
+// Play with seek
+await queue.node.play(track, {
+  queue: false,
+  seek: 60000  // Start at 1 minute
+});
+
+// Add to queue
+await queue.node.play(track, {
+  queue: true
+});
+
+// Smooth transition (used internally for filters)
+await queue.node.play(track, {
+  transitionMode: true,
+  seek: queue.node.playbackTime
+});
+```
+
+## DSP Pipeline
+
+The complete DSP processing pipeline:
+
+```typescript
+const stream = dsp.create(source, {
+  // PCM Filters
+  dsp: {
+    filters: config.defaultFilters,
+    disabled: config.disableFilters
+  },
+  
+  // Biquad Filtering
+  biquad: config.biquadFilter ? {
+    filter: config.biquadFilter,
+    disabled: config.disableBiquad
+  } : undefined,
+  
+  // Sample Rate Conversion
+  resampler: config.sampleRate ? {
+    inputSampleRate: 48000,
+    targetSampleRate: config.sampleRate,
+    disabled: config.disableResampler
+  } : undefined,
+  
+  // 15-band Equalizer
+  equalizer: {
+    bandMultiplier: config.eq,
+    disabled: config.disableEqualizer
+  },
+  
+  // Volume Control
+  volume: {
+    volume: config.volume,
+    disabled: config.disableVolume
+  },
+  
+  // Dynamic Range Compression
+  compressor: config.compressor ? {
+    threshold: config.compressor.threshold,
+    ratio: config.compressor.ratio,
+    attack: config.compressor.attack,
+    release: config.compressor.release,
+    makeupGain: config.compressor.makeupGain,
+    kneeWidth: config.compressor.kneeWidth,
+    disabled: config.disableCompressor
+  } : undefined,
+  
+  // Reverb Effect
+  reverb: config.reverb ? {
+    roomSize: config.reverb.roomSize,
+    damping: config.reverb.damping,
+    wetLevel: config.reverb.wetLevel,
+    dryLevel: config.reverb.dryLevel,
+    disabled: config.disableReverb
+  } : undefined,
+  
+  // PCM Seeking
+  seeker: config.seeker ? {
+    disabled: config.disableSeeker,
+    seekTarget: config.seeker.seekTarget,
+    sampleRate: 48000,
+    channels: 2,
+    totalDuration: config.seeker.totalDuration
+  } : undefined
+});
+```
+
+## Stream Events
+
+```typescript
+queue.on('dsp', (filters: PCMFilters[]) => {
+  console.log('DSP filters updated:', filters);
+});
+
+queue.on('biquad', (filter: BiquadFilters) => {
+  console.log('Biquad filter:', filter);
+});
+
+queue.on('compressor', (params: CompressorParameters) => {
+  console.log('Compressor:', params);
+});
+
+queue.on('reverb', (params: ReverbParameters) => {
+  console.log('Reverb:', params);
+});
+
+queue.on('sampleRate', (params: ResampleParameters) => {
+  console.log('Sample rate:', params);
+});
+
+queue.on('seeker', (params: SeekerParameters) => {
+  console.log('Seeker:', params);
+});
+```
+
+## Complete Example
+
+```typescript
+import { Player, EqualizerConfigurationPreset } from 'discord-player';
+
+const player = new Player(client, {
+  skipFFmpeg: true
+});
+
+const queue = player.queues.create(guild, {
+  volume: 80,
+  disableVolume: false,
+  disableEqualizer: false,
+  disableCompressor: false,
+  disableReverb: false
+});
+
+player.events.on('willPlayTrack', (queue, track, config, resolve) => {
+  // Configure all audio processing
+  config.dispatcherConfig.volume = 80;
+  config.dispatcherConfig.eq = EqualizerConfigurationPreset.Rock;
+  config.dispatcherConfig.biquadFilter = 'lowpass';
+  
+  config.dispatcherConfig.compressor = {
+    threshold: -24,
+    ratio: 4,
+    attack: 5,
+    release: 50,
+    makeupGain: 6,
+    kneeWidth: 6
+  };
+  
+  config.dispatcherConfig.reverb = {
+    roomSize: 0.5,
+    damping: 0.5,
+    wetLevel: 0.3,
+    dryLevel: 0.7
+  };
+  
+  config.dispatcherConfig.sampleRate = 48000;
+  
+  resolve();
+});
+```
+
+## Best Practices
+
+<Warning>
+**Performance**
+- Each enabled processor adds CPU overhead
+- Disable unused features for better performance
+- `skipFFmpeg` improves performance when no filters are needed
+- Heavy compression/reverb increases processing time
+</Warning>
+
+<Tip>
+**Recommendations**
+- Use `willPlayTrack` for per-track configuration
+- Cache user preferences for stream config
+- Test different compressor settings for your use case
+- Combine reverb with appropriate EQ settings
+- Monitor CPU usage with multiple enabled processors
+</Tip>
+
+<Note>
+**Processing Order**
+Audio passes through processors in this order:
+1. FFmpeg (if needed)
+2. Seeker
+3. Resampler
+4. Equalizer
+5. Biquad
+6. DSP Filters
+7. Compressor
+8. Reverb
+9. Volume
+</Note>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Audio Filters" icon="waveform" href="/audio/filters">
+    FFmpeg audio filters and effects
+  </Card>
+  <Card title="Equalizer" icon="sliders" href="/audio/equalizer">
+    15-band equalizer configuration
+  </Card>
+  <Card title="Volume Control" icon="volume" href="/audio/volume-control">
+    Manage playback volume
+  </Card>
+</CardGroup>

@@ -1,0 +1,707 @@
+---
+title: Lyrics
+description: Fetch and display synchronized lyrics with LrcLib
+icon: music
+---
+
+## Overview
+
+Discord Player provides built-in support for fetching and displaying synchronized lyrics through the LrcLib API. The `LrcLib` class handles API requests, while `SyncedLyricsProvider` manages real-time lyric synchronization with playback.
+
+---
+
+## LrcLib
+
+The `LrcLib` class interfaces with the [lrclib.net](https://lrclib.net) API to fetch plain and synchronized lyrics.
+
+### Constructor
+
+```typescript
+new LrcLib(player: Player)
+```
+
+<ParamField path="player" type="Player" required>
+  The Discord Player instance
+</ParamField>
+
+<Info>
+LrcLib is automatically instantiated by the Player. Access it via `player.lyrics` or `player.lrclib`.
+</Info>
+
+---
+
+## Properties
+
+### api
+
+The LrcLib API base URL.
+
+```typescript
+lrclib.api: string // 'https://lrclib.net/api'
+```
+
+---
+
+### timeout
+
+Request timeout in milliseconds (default: 15 seconds).
+
+```typescript
+lrclib.timeout: number
+```
+
+---
+
+### bucket
+
+The request bucket for rate limiting.
+
+```typescript
+lrclib.bucket: SequentialBucket
+```
+
+---
+
+### player
+
+The Discord Player instance.
+
+```typescript
+lrclib.player: Player
+```
+
+---
+
+## Methods
+
+### get()
+
+Retrieves lyrics for a track with exact metadata match.
+
+```typescript
+await lrclib.get(params: LrcGetParams): Promise<LrcSearchResult>
+```
+
+<ParamField path="params" type="LrcGetParams" required>
+  The search parameters
+</ParamField>
+
+<ParamField path="params.trackName" type="string" required>
+  The track name
+</ParamField>
+
+<ParamField path="params.artistName" type="string" required>
+  The artist name
+</ParamField>
+
+<ParamField path="params.albumName" type="string" required>
+  The album name
+</ParamField>
+
+<ParamField path="params.duration" type="number" required>
+  The track duration in seconds
+</ParamField>
+
+<ResponseField name="result" type="LrcSearchResult">
+  The lyrics result with metadata
+</ResponseField>
+
+#### Example
+
+```typescript
+const lyrics = await player.lyrics.get({
+  trackName: 'Never Gonna Give You Up',
+  artistName: 'Rick Astley',
+  albumName: 'Whenever You Need Somebody',
+  duration: 213
+});
+
+console.log(lyrics.plainLyrics);
+console.log(lyrics.syncedLyrics);
+```
+
+---
+
+### getById()
+
+Retrieves lyrics by their LrcLib ID.
+
+```typescript
+await lrclib.getById(id: number | `${number}`): Promise<LrcSearchResult>
+```
+
+<ParamField path="id" type="number | string" required>
+  The LrcLib lyrics ID
+</ParamField>
+
+<ResponseField name="result" type="LrcSearchResult">
+  The lyrics result
+</ResponseField>
+
+#### Example
+
+```typescript
+const lyrics = await player.lyrics.getById(12345);
+
+console.log(`Track: ${lyrics.trackName} by ${lyrics.artistName}`);
+console.log(lyrics.syncedLyrics);
+```
+
+---
+
+### getCached()
+
+Retrieves cached lyrics from LrcLib's cache (faster but may be stale).
+
+```typescript
+await lrclib.getCached(params: LrcGetParams): Promise<LrcSearchResult>
+```
+
+<ParamField path="params" type="LrcGetParams" required>
+  The search parameters (same as `get()`)
+</ParamField>
+
+<ResponseField name="result" type="LrcSearchResult">
+  The cached lyrics result
+</ResponseField>
+
+#### Example
+
+```typescript
+const lyrics = await player.lyrics.getCached({
+  trackName: 'Bohemian Rhapsody',
+  artistName: 'Queen',
+  albumName: 'A Night at the Opera',
+  duration: 354
+});
+```
+
+---
+
+### search()
+
+Searches for lyrics with flexible query options.
+
+```typescript
+await lrclib.search(params: LrcSearchParams): Promise<LrcSearchResult[]>
+```
+
+<ParamField path="params" type="LrcSearchParams" required>
+  The search parameters
+</ParamField>
+
+<ParamField path="params.q" type="string">
+  Free-form search query (either this or trackName required)
+</ParamField>
+
+<ParamField path="params.trackName" type="string">
+  The track name (either this or q required)
+</ParamField>
+
+<ParamField path="params.artistName" type="string">
+  The artist name
+</ParamField>
+
+<ParamField path="params.albumName" type="string">
+  The album name
+</ParamField>
+
+<ResponseField name="results" type="LrcSearchResult[]">
+  Array of matching lyrics results
+</ResponseField>
+
+#### Example
+
+```typescript
+// Search with free-form query
+const results = await player.lyrics.search({
+  q: 'never gonna give you up'
+});
+
+// Search with specific metadata
+const preciseResults = await player.lyrics.search({
+  trackName: 'Smells Like Teen Spirit',
+  artistName: 'Nirvana'
+});
+
+if (results.length > 0) {
+  console.log(`Found ${results.length} results`);
+  console.log(results[0].syncedLyrics);
+}
+```
+
+---
+
+### setRequestTimeout()
+
+Sets the request timeout.
+
+```typescript
+lrclib.setRequestTimeout(timeout: number): void
+```
+
+<ParamField path="timeout" type="number" required>
+  Timeout in milliseconds
+</ParamField>
+
+#### Example
+
+```typescript
+// Set 30 second timeout
+player.lyrics.setRequestTimeout(30000);
+```
+
+---
+
+### setRetryLimit()
+
+Sets the maximum number of retry attempts.
+
+```typescript
+lrclib.setRetryLimit(limit: number): void
+```
+
+<ParamField path="limit" type="number" required>
+  Maximum retry attempts (default: 5)
+</ParamField>
+
+#### Example
+
+```typescript
+// Allow up to 10 retries
+player.lyrics.setRetryLimit(10);
+```
+
+---
+
+## SyncedLyricsProvider
+
+The `SyncedLyricsProvider` class manages real-time synchronized lyrics display.
+
+### Constructor
+
+```typescript
+new SyncedLyricsProvider(queue: GuildQueue, raw?: LrcGetResult | LrcSearchResult)
+```
+
+<ParamField path="queue" type="GuildQueue" required>
+  The guild queue instance
+</ParamField>
+
+<ParamField path="raw" type="LrcGetResult | LrcSearchResult">
+  Optional lyrics data to load immediately
+</ParamField>
+
+### Properties
+
+#### queue
+
+The guild queue instance.
+
+```typescript
+provider.queue: GuildQueue
+```
+
+---
+
+#### lyrics
+
+Map of timestamp (ms) to lyric line.
+
+```typescript
+provider.lyrics: Map<number, string>
+```
+
+---
+
+#### interval
+
+Update interval in milliseconds (default: 100ms).
+
+```typescript
+provider.interval: number
+```
+
+---
+
+#### raw
+
+The raw lyrics data from LrcLib.
+
+```typescript
+provider.raw?: LrcGetResult | LrcSearchResult
+```
+
+---
+
+## Methods
+
+### load()
+
+Loads synchronized lyrics from LRC format string.
+
+```typescript
+provider.load(lyrics: string): void
+```
+
+<ParamField path="lyrics" type="string" required>
+  The synced lyrics in LRC format
+</ParamField>
+
+#### Example
+
+```typescript
+const lrcData = `
+[00:12.00]Never gonna give you up
+[00:16.00]Never gonna let you down
+[00:20.00]Never gonna run around and desert you
+`;
+
+const provider = new SyncedLyricsProvider(queue);
+provider.load(lrcData);
+```
+
+---
+
+### at()
+
+Returns the lyric line at a specific timestamp (or closest match within ±2 seconds).
+
+```typescript
+provider.at(time: number): LyricsAt | null
+```
+
+<ParamField path="time" type="number" required>
+  The time in milliseconds
+</ParamField>
+
+<ResponseField name="result" type="LyricsAt | null">
+  The lyric line and timestamp, or null if not found
+</ResponseField>
+
+#### Example
+
+```typescript
+// Get lyric at 30 seconds
+const lyric = provider.at(30000);
+
+if (lyric) {
+  console.log(`[${lyric.timestamp}ms] ${lyric.line}`);
+}
+```
+
+---
+
+### subscribe()
+
+Subscribes to real-time lyric updates based on queue playback.
+
+```typescript
+provider.subscribe(): Unsubscribe
+```
+
+<ResponseField name="unsubscribe" type="() => void">
+  Function to unsubscribe from updates
+</ResponseField>
+
+#### Example
+
+```typescript
+const provider = new SyncedLyricsProvider(queue);
+
+// Set up the callback
+provider.onChange((line, timestamp) => {
+  console.log(`[${timestamp}ms] ${line}`);
+  // Update your UI with the current lyric line
+});
+
+// Start subscribing
+const unsubscribe = provider.subscribe();
+
+// Later: stop subscribing
+unsubscribe();
+```
+
+---
+
+### onChange()
+
+Sets the callback function called when lyrics change.
+
+```typescript
+provider.onChange(callback: LyricsCallback): void
+```
+
+<ParamField path="callback" type="(lyrics: string, timestamp: number) => unknown" required>
+  The callback function receiving lyric line and timestamp
+</ParamField>
+
+---
+
+### onUnsubscribe()
+
+Sets a callback for when the provider is unsubscribed.
+
+```typescript
+provider.onUnsubscribe(callback: Unsubscribe): void
+```
+
+<ParamField path="callback" type="() => void" required>
+  The callback function called on unsubscribe
+</ParamField>
+
+---
+
+### unsubscribe()
+
+Manually unsubscribes from lyric updates.
+
+```typescript
+provider.unsubscribe(): void
+```
+
+---
+
+### pause()
+
+Pauses the lyrics provider.
+
+```typescript
+provider.pause(): boolean
+```
+
+<ResponseField name="wasPaused" type="boolean">
+  True if provider was running and is now paused
+</ResponseField>
+
+---
+
+### resume()
+
+Resumes the lyrics provider.
+
+```typescript
+provider.resume(): boolean
+```
+
+<ResponseField name="wasResumed" type="boolean">
+  True if provider was paused and is now resumed
+</ResponseField>
+
+---
+
+### isSubscribed()
+
+Checks if the provider is currently subscribed.
+
+```typescript
+provider.isSubscribed(): boolean
+```
+
+<ResponseField name="subscribed" type="boolean">
+  True if subscribed
+</ResponseField>
+
+---
+
+## Complete Usage Example
+
+```typescript
+import { Player, SyncedLyricsProvider } from 'discord-player';
+import { EmbedBuilder } from 'discord.js';
+
+const player = new Player(client);
+
+// Play command with lyrics
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'play') return;
+
+  const queue = player.queues.cache.get(interaction.guildId);
+  const track = queue.currentTrack;
+
+  if (!track) return;
+
+  await interaction.deferReply();
+
+  try {
+    // Fetch lyrics from LrcLib
+    const lyrics = await player.lyrics.search({
+      trackName: track.title,
+      artistName: track.author,
+      albumName: track.raw?.album
+    });
+
+    if (lyrics.length === 0) {
+      return interaction.editReply('No lyrics found!');
+    }
+
+    const lyricsData = lyrics[0];
+
+    // Show plain lyrics
+    const embed = new EmbedBuilder()
+      .setTitle(`${lyricsData.trackName} - ${lyricsData.artistName}`)
+      .setDescription(lyricsData.plainLyrics.slice(0, 4000))
+      .setColor('#FF0000');
+
+    await interaction.editReply({ embeds: [embed] });
+
+    // Set up synchronized lyrics if available
+    if (lyricsData.syncedLyrics) {
+      const provider = new SyncedLyricsProvider(queue, lyricsData);
+
+      // Create a message for live updates
+      const lyricsMessage = await interaction.followUp('🎵 Starting synced lyrics...');
+
+      // Set up the callback
+      provider.onChange((line, timestamp) => {
+        lyricsMessage.edit(`🎵 **Now**: ${line}\n*${timestamp}ms*`);
+      });
+
+      // Subscribe to updates
+      const unsubscribe = provider.subscribe();
+
+      // Clean up when track ends
+      queue.on('playerFinish', () => {
+        unsubscribe();
+        lyricsMessage.edit('🎵 Lyrics ended');
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching lyrics:', error);
+    await interaction.editReply('Failed to fetch lyrics!');
+  }
+});
+
+// Lyrics command
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'lyrics') return;
+
+  const queue = player.queues.cache.get(interaction.guildId);
+  if (!queue || !queue.currentTrack) {
+    return interaction.reply('No track is currently playing!');
+  }
+
+  const track = queue.currentTrack;
+
+  await interaction.deferReply();
+
+  try {
+    // Get exact match with duration
+    const lyrics = await player.lyrics.get({
+      trackName: track.title,
+      artistName: track.author,
+      albumName: track.raw?.album || '',
+      duration: Math.floor(track.durationMS / 1000)
+    });
+
+    // Display current line
+    const provider = new SyncedLyricsProvider(queue, lyrics);
+    const currentTime = queue.node.getTimestamp()?.current.value || 0;
+    const currentLyric = provider.at(currentTime);
+
+    const embed = new EmbedBuilder()
+      .setTitle(`${lyrics.trackName} - ${lyrics.artistName}`)
+      .setDescription(
+        currentLyric 
+          ? `**Current line:**\n${currentLyric.line}\n\n${lyrics.plainLyrics.slice(0, 3000)}`
+          : lyrics.plainLyrics.slice(0, 4000)
+      )
+      .setColor('#FF0000')
+      .setFooter({ 
+        text: lyrics.syncedLyrics ? '✅ Synced lyrics available' : '⚠️ Plain lyrics only'
+      });
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error('Error:', error);
+    await interaction.editReply('Could not fetch lyrics!');
+  }
+});
+```
+
+---
+
+## Types
+
+### LrcSearchParams
+
+```typescript
+interface LrcSearchParams {
+  q?: string;           // Free-form query
+  trackName?: string;   // Track name
+  artistName?: string;  // Artist name
+  albumName?: string;   // Album name
+}
+```
+
+### LrcGetParams
+
+```typescript
+interface LrcGetParams {
+  trackName: string;    // Required: Track name
+  artistName: string;   // Required: Artist name
+  albumName: string;    // Required: Album name
+  duration: number;     // Required: Duration in seconds
+}
+```
+
+### LrcSearchResult
+
+```typescript
+interface LrcSearchResult {
+  id: number;              // LrcLib lyrics ID
+  name: string;            // Track name
+  trackName: string;       // Track name
+  artistName: string;      // Artist name
+  albumName: string;       // Album name
+  duration: number;        // Track duration in seconds
+  instrumental: boolean;   // Whether track is instrumental
+  plainLyrics: string;     // Plain text lyrics
+  syncedLyrics?: string;   // LRC format synced lyrics
+}
+```
+
+### LyricsAt
+
+```typescript
+interface LyricsAt {
+  timestamp: number;  // Timestamp in milliseconds
+  line: string;       // The lyric line
+}
+```
+
+### LyricsCallback
+
+```typescript
+type LyricsCallback = (lyrics: string, timestamp: number) => unknown;
+```
+
+---
+
+## LRC Format
+
+Synchronized lyrics use the LRC format:
+
+```
+[00:12.00]First line of lyrics
+[00:17.20]Second line of lyrics
+[00:21.10]Third line of lyrics
+```
+
+Format: `[MM:SS.XX]` where:
+- `MM` = minutes (2 digits)
+- `SS` = seconds (2 digits)  
+- `XX` = centiseconds (2 digits)
+
+---
+
+## Notes
+
+- LrcLib API is rate-limited; use the built-in request bucket
+- The `at()` method has a ±2 second tolerance for finding nearby lyrics
+- Lyrics provider automatically unsubscribes when queue is deleted
+- Default update interval is 100ms (10 updates per second)
+- Use `getCached()` for faster responses when exact accuracy isn't critical
+- Not all tracks have synchronized lyrics; check `syncedLyrics` property

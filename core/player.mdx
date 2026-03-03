@@ -1,0 +1,295 @@
+---
+title: Player
+description: The core Player class that manages music playback across your Discord bot
+icon: play
+---
+
+The `Player` class is the heart of Discord Player. It manages all music operations, queue management, and audio connections across your bot's guilds.
+
+## Creating a Player
+
+The Player instance is typically created once when your bot starts:
+
+```typescript
+import { Player } from 'discord-player';
+import { Client } from 'discord.js';
+
+const client = new Client({
+  intents: ['Guilds', 'GuildVoiceStates']
+});
+
+const player = new Player(client, {
+  skipFFmpeg: false,
+  lagMonitor: 30000
+});
+```
+
+<Note>
+The `GuildVoiceStates` intent is required for Discord Player to function properly.
+</Note>
+
+## Player Options
+
+The Player accepts several configuration options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `connectionTimeout` | `number` | `20000` | Voice connection timeout in ms |
+| `lagMonitor` | `number` | `30000` | Event loop lag monitoring interval |
+| `blockExtractors` | `string[]` | `[]` | List of extractors to disable for metadata |
+| `blockStreamFrom` | `string[]` | `[]` | List of extractors to disable for streaming |
+| `queryCache` | `QueryCacheProvider` | Built-in cache | Query cache provider (use `null` to disable) |
+| `skipFFmpeg` | `boolean` | `true` | Skip FFmpeg processing when possible |
+| `probeTimeout` | `number` | `5000` | Probe timeout in milliseconds |
+| `ffmpegPath` | `string` | Auto-detected | Custom FFmpeg binary path |
+
+## Key Methods
+
+### play()
+
+Play a track in a voice channel. This is the main method for music playback:
+
+```typescript
+const { track } = await player.play(voiceChannel, 'Never Gonna Give You Up', {
+  nodeOptions: {
+    metadata: {
+      channel: interaction.channel
+    }
+  }
+});
+
+console.log(`Now playing: ${track.title}`);
+```
+
+**Signature:**
+```typescript
+player.play<T>(
+  channel: GuildVoiceChannelResolvable,
+  query: TrackLike,
+  options?: PlayerNodeInitializerOptions<T>
+): Promise<PlayerNodeInitializationResult<T>>
+```
+
+### search()
+
+Search for tracks without playing them:
+
+```typescript
+const result = await player.search('Imagine Dragons', {
+  requestedBy: interaction.user,
+  searchEngine: QueryType.YOUTUBE
+});
+
+if (result.hasTracks()) {
+  console.log(`Found ${result.tracks.length} tracks`);
+}
+```
+
+**Signature:**
+```typescript
+player.search(
+  query: TrackLike,
+  options?: SearchOptions
+): Promise<SearchResult>
+```
+
+### extractors
+
+Manage extractors for fetching music from different sources:
+
+```typescript
+import { YouTubeExtractor } from '@discord-player/extractor';
+
+// Register an extractor
+await player.extractors.register(YouTubeExtractor, {});
+
+// Load default extractors
+await player.extractors.loadDefault();
+```
+
+## Properties
+
+### nodes
+
+Access to the guild node manager (queue manager):
+
+```typescript
+// Get a specific queue
+const queue = player.nodes.get(guildId);
+
+// Create a new queue
+const queue = player.nodes.create(guild, {
+  metadata: { channel: interaction.channel }
+});
+
+// Delete a queue
+player.nodes.delete(guildId);
+```
+
+### events
+
+The global event emitter for all queue events:
+
+```typescript
+player.events.on('playerStart', (queue, track) => {
+  console.log(`Started playing ${track.title}`);
+});
+
+player.events.on('error', (queue, error) => {
+  console.error(`Queue error: ${error.message}`);
+});
+```
+
+### lyrics
+
+Access to the lyrics API powered by LrcLib:
+
+```typescript
+const results = await player.lyrics.search({
+  q: 'Alan Walker Faded'
+});
+
+if (results.length > 0) {
+  console.log(results[0].plainLyrics);
+}
+```
+
+## Voice State Handler
+
+Customize how the player handles voice state updates:
+
+```typescript
+player.onVoiceStateUpdate((player, queue, oldState, newState) => {
+  // Custom voice state handling logic
+  if (oldState.channelId && !newState.channelId) {
+    console.log('User left the channel');
+  }
+});
+```
+
+## Utility Methods
+
+### scanDeps()
+
+Generate a diagnostic report of dependencies:
+
+```typescript
+console.log(player.scanDeps());
+// Outputs version info for discord-player, discord-voip, discord.js, FFmpeg, etc.
+```
+
+### generateStatistics()
+
+Get statistics about active queues:
+
+```typescript
+const stats = player.generateStatistics();
+console.log(`Active queues: ${stats.queuesCount}`);
+console.log(`Cache enabled: ${stats.queryCacheEnabled}`);
+```
+
+### destroy()
+
+Clean up all resources when shutting down:
+
+```typescript
+await player.destroy();
+```
+
+## Player Events
+
+The Player emits the following events:
+
+| Event | Parameters | Description |
+|-------|------------|-------------|
+| `debug` | `(message: string)` | Debug information |
+| `error` | `(error: Error)` | Player-level errors |
+| `voiceStateUpdate` | `(queue, oldState, newState)` | Voice state changes |
+
+```typescript
+player.on('debug', (message) => {
+  console.log('[Player Debug]', message);
+});
+
+player.on('error', (error) => {
+  console.error('[Player Error]', error);
+});
+```
+
+## Advanced Features
+
+### Query Cache
+
+The Player includes a built-in query cache to avoid redundant searches:
+
+```typescript
+// Disable query cache
+const player = new Player(client, {
+  queryCache: null
+});
+
+// Custom cache provider
+const player = new Player(client, {
+  queryCache: new CustomQueryCache()
+});
+```
+
+### Stream Interceptor
+
+Intercept and modify streams before playback:
+
+```typescript
+const interceptor = player.createStreamInterceptor({
+  // Your interceptor logic
+});
+```
+
+### Event Loop Monitoring
+
+Monitor event loop lag to detect performance issues:
+
+```typescript
+const lag = player.eventLoopLag;
+if (lag > 20) {
+  console.warn(`High event loop lag detected: ${lag}ms`);
+}
+```
+
+## Example: Complete Setup
+
+```typescript
+import { Client, GatewayIntentBits } from 'discord.js';
+import { Player, QueryType } from 'discord-player';
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates
+  ]
+});
+
+const player = new Player(client, {
+  skipFFmpeg: false,
+  lagMonitor: 30000
+});
+
+// Load default extractors
+await player.extractors.loadDefault();
+
+// Global event handling
+player.events.on('playerStart', (queue, track) => {
+  queue.metadata.channel.send(`Now playing: **${track.title}**`);
+});
+
+player.events.on('error', (queue, error) => {
+  console.error(`Queue error: ${error.message}`);
+});
+
+client.login(process.env.DISCORD_TOKEN);
+```
+
+## See Also
+
+- [GuildQueue](/core/queue) - Learn about queue management
+- [Track](/core/tracks) - Understanding track objects
+- [Events](/core/events) - Complete event reference

@@ -1,0 +1,390 @@
+---
+title: SearchResult
+description: Represents search results containing tracks and playlists
+icon: magnifying-glass
+---
+
+The `SearchResult` class represents the results from a search operation, containing tracks, playlists, and metadata about the search.
+
+## Properties
+
+<ResponseField name="query" type="string">
+  The original search query
+</ResponseField>
+
+<ResponseField name="queryType" type="SearchQueryType | QueryExtractorSearch">
+  The query type/search engine used
+</ResponseField>
+
+<ResponseField name="extractor" type="BaseExtractor | null">
+  The extractor that handled this search
+</ResponseField>
+
+<ResponseField name="playlist" type="Playlist | null">
+  Playlist result (if query was a playlist URL)
+</ResponseField>
+
+<ResponseField name="tracks" type="Track[]">
+  Array of track results
+</ResponseField>
+
+<ResponseField name="requestedBy" type="User | null">
+  The user who requested this search
+</ResponseField>
+
+<ResponseField name="player" type="Player">
+  The player instance
+</ResponseField>
+
+## Methods
+
+### isEmpty()
+
+Check if search returned no results:
+
+```typescript
+const result = await player.search(query);
+
+if (result.isEmpty()) {
+  return interaction.reply('No results found!');
+}
+```
+
+<ResponseField name="returns" type="boolean">
+  True if no tracks were found
+</ResponseField>
+
+### hasTracks()
+
+Check if search returned tracks:
+
+```typescript
+if (result.hasTracks()) {
+  console.log(`Found ${result.tracks.length} tracks`);
+}
+```
+
+<ResponseField name="returns" type="boolean">
+  True if tracks were found
+</ResponseField>
+
+### hasPlaylist()
+
+Check if search returned a playlist:
+
+```typescript
+if (result.hasPlaylist()) {
+  console.log(`Found playlist: ${result.playlist.title}`);
+}
+```
+
+<ResponseField name="returns" type="boolean">
+  True if a playlist was found
+</ResponseField>
+
+### setQueryType()
+
+Set the query type:
+
+```typescript
+import { QueryType } from 'discord-player';
+
+result.setQueryType(QueryType.YOUTUBE_SEARCH);
+```
+
+<ParamField path="type" type="SearchQueryType | QueryExtractorSearch" required>
+  The query type to set
+</ParamField>
+
+<ResponseField name="returns" type="SearchResult">
+  The SearchResult instance (for chaining)
+</ResponseField>
+
+### setRequestedBy()
+
+Set the requesting user:
+
+```typescript
+result.setRequestedBy(interaction.user);
+```
+
+<ParamField path="user" type="User" required>
+  The Discord user
+</ParamField>
+
+<ResponseField name="returns" type="SearchResult">
+  The SearchResult instance (for chaining)
+</ResponseField>
+
+### setExtractor()
+
+Set the extractor:
+
+```typescript
+result.setExtractor(extractor);
+```
+
+<ParamField path="extractor" type="BaseExtractor" required>
+  The extractor instance
+</ParamField>
+
+<ResponseField name="returns" type="SearchResult">
+  The SearchResult instance (for chaining)
+</ResponseField>
+
+### setTracks()
+
+Set the tracks array:
+
+```typescript
+result.setTracks(filteredTracks);
+```
+
+<ParamField path="tracks" type="Track[]" required>
+  Array of tracks
+</ParamField>
+
+<ResponseField name="returns" type="SearchResult">
+  The SearchResult instance (for chaining)
+</ResponseField>
+
+### setQuery()
+
+Set the search query:
+
+```typescript
+result.setQuery('new search query');
+```
+
+<ParamField path="query" type="string" required>
+  The search query
+</ParamField>
+
+<ResponseField name="returns" type="SearchResult">
+  The SearchResult instance (for chaining)
+</ResponseField>
+
+### setPlaylist()
+
+Set the playlist:
+
+```typescript
+result.setPlaylist(playlist);
+```
+
+<ParamField path="playlist" type="Playlist" required>
+  The playlist instance
+</ParamField>
+
+<ResponseField name="returns" type="SearchResult">
+  The SearchResult instance (for chaining)
+</ResponseField>
+
+### execute()
+
+Re-execute the search:
+
+```typescript
+const newResult = await result.execute();
+```
+
+<ResponseField name="returns" type="Promise<SearchResult>">
+  A new SearchResult with fresh results
+</ResponseField>
+
+### toJSON()
+
+Convert to JSON:
+
+```typescript
+const json = result.toJSON();
+console.log(json.tracks.length);
+```
+
+<ResponseField name="returns" type="object">
+  JSON representation with query, queryType, playlist, tracks, extractor, and requestedBy
+</ResponseField>
+
+## Example Usage
+
+### Basic Search
+
+```typescript
+import { useMainPlayer } from 'discord-player';
+
+const player = useMainPlayer();
+
+const result = await player.search('despacito', {
+  requestedBy: interaction.user
+});
+
+if (result.isEmpty()) {
+  return interaction.reply('❌ No results found!');
+}
+
+const track = result.tracks[0];
+await interaction.reply(`Found: **${track.title}** by ${track.author}`);
+```
+
+### Handle Playlist and Tracks
+
+```typescript
+const result = await player.search(query, {
+  requestedBy: interaction.user
+});
+
+if (result.hasPlaylist()) {
+  // Play entire playlist
+  await result.playlist.play(voiceChannel, {
+    nodeOptions: { metadata: interaction }
+  });
+  
+  await interaction.reply(
+    `🎵 Playing playlist: **${result.playlist.title}** (${result.playlist.tracks.length} tracks)`
+  );
+} else if (result.hasTracks()) {
+  // Play first track
+  const track = result.tracks[0];
+  await player.play(voiceChannel, track, {
+    nodeOptions: { metadata: interaction }
+  });
+  
+  await interaction.reply(`🎵 Playing: **${track.cleanTitle}**`);
+} else {
+  await interaction.reply('❌ No results found!');
+}
+```
+
+### Track Selection Menu
+
+```typescript
+import { StringSelectMenuBuilder, ActionRowBuilder } from 'discord.js';
+
+const result = await player.search(query, {
+  requestedBy: interaction.user
+});
+
+if (result.isEmpty()) {
+  return interaction.reply('No results found!');
+}
+
+const tracks = result.tracks.slice(0, 10);
+
+const selectMenu = new StringSelectMenuBuilder()
+  .setCustomId('track-select')
+  .setPlaceholder('Choose a track')
+  .addOptions(
+    tracks.map((track, i) => ({
+      label: track.title.slice(0, 100),
+      description: `${track.author} • ${track.duration}`.slice(0, 100),
+      value: i.toString()
+    }))
+  );
+
+const row = new ActionRowBuilder().addComponents(selectMenu);
+
+await interaction.reply({
+  content: `Found ${tracks.length} results:`,
+  components: [row]
+});
+
+// In your interaction collector
+const selected = result.tracks[parseInt(i.values[0])];
+await player.play(voiceChannel, selected, {
+  nodeOptions: { metadata: interaction }
+});
+```
+
+### Modify Search Results
+
+```typescript
+const result = await player.search(query, {
+  requestedBy: interaction.user
+});
+
+// Filter out short tracks
+const longTracks = result.tracks.filter(track => track.durationMS > 180000);
+result.setTracks(longTracks);
+
+// Update metadata
+result.setRequestedBy(interaction.user)
+  .setQueryType(QueryType.YOUTUBE_SEARCH);
+
+// Re-execute search with same params
+const freshResult = await result.execute();
+```
+
+### Search with Different Engines
+
+```typescript
+import { QueryType } from 'discord-player';
+
+// YouTube search
+const ytResult = await player.search('song name', {
+  searchEngine: QueryType.YOUTUBE_SEARCH,
+  requestedBy: interaction.user
+});
+
+// SoundCloud search
+const scResult = await player.search('song name', {
+  searchEngine: QueryType.SOUNDCLOUD_SEARCH,
+  requestedBy: interaction.user
+});
+
+// Spotify search
+const spotifyResult = await player.search('song name', {
+  searchEngine: QueryType.SPOTIFY_SEARCH,
+  requestedBy: interaction.user
+});
+
+// Target specific extractor
+const extResult = await player.search('song name', {
+  searchEngine: 'ext:MyCustomExtractor',
+  requestedBy: interaction.user
+});
+```
+
+### Search Result Info
+
+```typescript
+const result = await player.search(query);
+
+console.log('Query:', result.query);
+console.log('Query Type:', result.queryType);
+console.log('Extractor:', result.extractor?.identifier);
+console.log('Has Playlist:', result.hasPlaylist());
+console.log('Track Count:', result.tracks.length);
+console.log('Requested By:', result.requestedBy?.tag);
+
+if (result.hasPlaylist()) {
+  console.log('Playlist Title:', result.playlist.title);
+  console.log('Playlist Tracks:', result.playlist.tracks.length);
+}
+```
+
+## TypeScript Types
+
+```typescript
+interface SearchResultData {
+  query: string;
+  queryType?: SearchQueryType | QueryExtractorSearch | null;
+  extractor?: BaseExtractor | null;
+  playlist?: Playlist | null;
+  tracks?: Track[];
+  requestedBy?: User | null;
+}
+
+type QueryExtractorSearch = `ext:${string}`;
+
+interface PlayerSearchResult {
+  playlist: Playlist | null;
+  tracks: Track[];
+}
+```
+
+## Related
+
+- [Track](/api/track)
+- [Playlist](/api/playlist)
+- [Player.search()](/api/player#search)
+- [QueryResolver](/api/query-resolver)

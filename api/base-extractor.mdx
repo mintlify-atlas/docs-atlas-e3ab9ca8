@@ -1,0 +1,557 @@
+---
+title: BaseExtractor
+description: API reference for the BaseExtractor class
+icon: plug
+---
+
+## BaseExtractor
+
+Base class for creating custom extractors. Extractors handle searching, validating, and streaming audio from various sources.
+
+### Constructor
+
+```typescript
+new BaseExtractor<T extends object = object>(
+  context: ExtractorExecutionContext,
+  options?: T
+)
+```
+
+<ParamField path="context" type="ExtractorExecutionContext" required>
+  The execution context that instantiated this extractor
+</ParamField>
+
+<ParamField path="options" type="T">
+  Initialization options for this extractor
+</ParamField>
+
+### Static Properties
+
+<ResponseField name="identifier" type="string" default="com.discord-player.extractor">
+  Unique identifier for this extractor. Should be overridden in subclasses
+</ResponseField>
+
+### Properties
+
+<ResponseField name="context" type="ExtractorExecutionContext">
+  The execution context managing this extractor
+</ResponseField>
+
+<ResponseField name="options" type="T">
+  Configuration options for this extractor
+</ResponseField>
+
+<ResponseField name="priority" type="number" default={1}>
+  Priority of this extractor. Higher values execute first (range: any number)
+</ResponseField>
+
+<ResponseField name="protocols" type="string[]" default={[]}>
+  List of query protocols this extractor supports (e.g., `['spotify:', 'https://spotify.com']`)
+</ResponseField>
+
+<ResponseField name="identifier" type="string">
+  Instance identifier matching the static identifier property
+</ResponseField>
+
+<ResponseField name="supportsDemux" type="boolean">
+  Whether this extractor supports demuxable streams (opus/ogg/webm formats)
+</ResponseField>
+
+<ResponseField name="createBridgeQuery" type="(track: Track) => string">
+  Function to create search query for bridging. Defaults to: `${track.title} by ${track.author} official audio`
+</ResponseField>
+
+### Methods
+
+#### activate
+
+Called when the extractor is registered and activated.
+
+```typescript
+async activate(): Promise<void>
+```
+
+**Example:**
+```typescript
+class MyExtractor extends BaseExtractor {
+  async activate() {
+    // Initialize API client, set up event listeners, etc.
+    console.log('MyExtractor activated');
+  }
+}
+```
+
+#### deactivate
+
+Called when the extractor is unregistered or deactivated.
+
+```typescript
+async deactivate(): Promise<void>
+```
+
+**Example:**
+```typescript
+class MyExtractor extends BaseExtractor {
+  async deactivate() {
+    // Clean up resources, close connections, etc.
+    console.log('MyExtractor deactivated');
+  }
+}
+```
+
+#### reconfigure
+
+Reconfigures the extractor with new options.
+
+```typescript
+async reconfigure(options: T): Promise<void>
+```
+
+<ParamField path="options" type="T" required>
+  New options to apply to the extractor
+</ParamField>
+
+**Example:**
+```typescript
+await myExtractor.reconfigure({
+  apiKey: 'new-api-key',
+  timeout: 5000
+});
+```
+
+#### validate
+
+Validate if this extractor can handle the given query.
+
+```typescript
+async validate(query: string, type?: SearchQueryType | null): Promise<boolean>
+```
+
+<ParamField path="query" type="string" required>
+  The search query to validate
+</ParamField>
+
+<ParamField path="type" type="SearchQueryType | null">
+  The type of query being validated
+</ParamField>
+
+<ResponseField name="return" type="Promise<boolean>">
+  `true` if this extractor can handle the query, `false` otherwise
+</ResponseField>
+
+**Example:**
+```typescript
+class SpotifyExtractor extends BaseExtractor {
+  async validate(query: string) {
+    return query.includes('spotify.com') || query.startsWith('spotify:');
+  }
+}
+```
+
+#### handle
+
+Handle a search query and return results.
+
+```typescript
+async handle(
+  query: string,
+  context: ExtractorSearchContext
+): Promise<ExtractorInfo>
+```
+
+<ParamField path="query" type="string" required>
+  The search query to handle
+</ParamField>
+
+<ParamField path="context" type="ExtractorSearchContext" required>
+  Search context containing:
+  - `type`: Query type
+  - `requestedBy`: User who requested the search
+  - `requestOptions`: HTTP request options
+  - `protocol`: Protocol being used
+</ParamField>
+
+<ResponseField name="return" type="Promise<ExtractorInfo>">
+  Object containing `playlist` and `tracks` array
+</ResponseField>
+
+**Example:**
+```typescript
+class MyExtractor extends BaseExtractor {
+  async handle(query: string, context: ExtractorSearchContext) {
+    const results = await this.searchAPI(query);
+    const tracks = results.map(r => new Track(this.context.player, {
+      title: r.title,
+      author: r.artist,
+      url: r.url,
+      duration: r.duration,
+      requestedBy: context.requestedBy
+    }));
+    
+    return this.createResponse(null, tracks);
+  }
+}
+```
+
+#### stream
+
+Stream audio for the given track.
+
+```typescript
+async stream(info: Track): Promise<ExtractorStreamable>
+```
+
+<ParamField path="info" type="Track" required>
+  The track to stream
+</ParamField>
+
+<ResponseField name="return" type="Promise<ExtractorStreamable>">
+  Can be:
+  - `Readable` stream
+  - String URL to audio
+  - Object with `{ stream: Readable, $fmt: string }` where `$fmt` is the format
+</ResponseField>
+
+**Example:**
+```typescript
+class MyExtractor extends BaseExtractor {
+  async stream(track: Track) {
+    // Return URL
+    return 'https://example.com/audio.mp3';
+    
+    // Or return stream
+    const stream = await getAudioStream(track.url);
+    return stream;
+    
+    // Or return stream with format
+    return {
+      stream: await getOpusStream(track.url),
+      $fmt: 'opus'
+    };
+  }
+}
+```
+
+#### getRelatedTracks
+
+Get related tracks for autoplay.
+
+```typescript
+async getRelatedTracks(
+  track: Track,
+  history: GuildQueueHistory
+): Promise<ExtractorInfo>
+```
+
+<ParamField path="track" type="Track" required>
+  The source track to find related tracks for
+</ParamField>
+
+<ParamField path="history" type="GuildQueueHistory" required>
+  Queue history to avoid repeating tracks
+</ParamField>
+
+<ResponseField name="return" type="Promise<ExtractorInfo>">
+  Object containing related tracks
+</ResponseField>
+
+**Example:**
+```typescript
+class MyExtractor extends BaseExtractor {
+  async getRelatedTracks(track: Track, history: GuildQueueHistory) {
+    const related = await this.api.getRelated(track.url);
+    const tracks = related
+      .filter(t => !history.tracks.some(h => h.url === t.url))
+      .map(t => new Track(this.context.player, t));
+    
+    return this.createResponse(null, tracks);
+  }
+}
+```
+
+#### bridge
+
+Handle stream extraction for another extractor when the source extractor cannot stream.
+
+```typescript
+async bridge(
+  track: Track,
+  sourceExtractor: BaseExtractor | null
+): Promise<ExtractorStreamable | null>
+```
+
+<ParamField path="track" type="Track" required>
+  The track to bridge
+</ParamField>
+
+<ParamField path="sourceExtractor" type="BaseExtractor | null" required>
+  The extractor that originally found the track
+</ParamField>
+
+<ResponseField name="return" type="Promise<ExtractorStreamable | null>">
+  Stream/URL if bridging is supported, `null` otherwise
+</ResponseField>
+
+**Example:**
+```typescript
+class YouTubeExtractor extends BaseExtractor {
+  async bridge(track: Track, sourceExtractor: BaseExtractor | null) {
+    // Search YouTube for the track
+    const query = this.createBridgeQuery(track);
+    const results = await this.handle(query, {});
+    
+    if (results.tracks.length === 0) return null;
+    
+    // Stream the first result
+    return this.stream(results.tracks[0]);
+  }
+}
+```
+
+#### handlePostStream
+
+Middleware to process streams before passing to the player.
+
+```typescript
+handlePostStream(stream: Readable, next: NextFunction): void
+```
+
+<ParamField path="stream" type="Readable" required>
+  The incoming audio stream
+</ParamField>
+
+<ParamField path="next" type="NextFunction" required>
+  Callback function: `(error?: Error | null, stream?: Readable) => void`
+</ParamField>
+
+**Example:**
+```typescript
+class MyExtractor extends BaseExtractor {
+  handlePostStream(stream: Readable, next: NextFunction) {
+    // Transform the stream
+    const transformed = stream.pipe(someTransform());
+    
+    // Pass to next middleware
+    next(null, transformed);
+    
+    // Or handle errors
+    transformed.on('error', (err) => next(err));
+  }
+}
+```
+
+#### createResponse
+
+Create standardized extractor response.
+
+```typescript
+createResponse(
+  playlist?: Playlist | null,
+  tracks?: Track[]
+): ExtractorInfo
+```
+
+<ParamField path="playlist" type="Playlist | null">
+  Playlist object if results are from a playlist
+</ParamField>
+
+<ParamField path="tracks" type="Track[]">
+  Array of tracks. Defaults to playlist tracks if not provided
+</ParamField>
+
+<ResponseField name="return" type="ExtractorInfo">
+  Standardized response object with `playlist` and `tracks` properties
+</ResponseField>
+
+**Example:**
+```typescript
+// Single track
+return this.createResponse(null, [track]);
+
+// Multiple tracks without playlist
+return this.createResponse(null, tracks);
+
+// Playlist with tracks
+return this.createResponse(playlist, tracks);
+```
+
+#### emit
+
+Dispatch an event to the player.
+
+```typescript
+emit<K extends keyof PlayerEvents>(
+  event: K,
+  ...args: Parameters<PlayerEvents[K]>
+): boolean
+```
+
+<ParamField path="event" type="keyof PlayerEvents" required>
+  The event name to emit
+</ParamField>
+
+<ParamField path="args" type="any[]" required>
+  Event arguments
+</ParamField>
+
+**Example:**
+```typescript
+this.emit('error', queue, error);
+this.emit('debug', 'Fetching audio stream...');
+```
+
+#### debug
+
+Write a debug message.
+
+```typescript
+debug(message: string): void
+```
+
+<ParamField path="message" type="string" required>
+  The debug message to log
+</ParamField>
+
+**Example:**
+```typescript
+this.debug('Searching for tracks...');
+this.debug(`Found ${results.length} results`);
+```
+
+## Types
+
+### ExtractorStreamable
+
+Valid return types for the `stream()` method.
+
+```typescript
+type ExtractorStreamable =
+  | Readable
+  | string
+  | { $fmt: string; stream: Readable };
+```
+
+### ExtractorInfo
+
+Standard extractor response format.
+
+```typescript
+interface ExtractorInfo {
+  playlist: Playlist | null;
+  tracks: Track[];
+}
+```
+
+### ExtractorSearchContext
+
+Context provided to the `handle()` method.
+
+```typescript
+interface ExtractorSearchContext {
+  type?: SearchQueryType | null;
+  requestedBy?: User | null;
+  requestOptions?: RequestOptions;
+  protocol?: string | null;
+}
+```
+
+### NextFunction
+
+Callback for stream middleware.
+
+```typescript
+type NextFunction = (error?: Error | null, stream?: Readable) => void;
+```
+
+## Complete Example
+
+```typescript
+import { BaseExtractor, ExtractorInfo, ExtractorSearchContext } from 'discord-player';
+import { Track } from 'discord-player';
+
+interface MyExtractorOptions {
+  apiKey: string;
+  timeout?: number;
+}
+
+class MyExtractor extends BaseExtractor<MyExtractorOptions> {
+  static identifier = 'com.example.my-extractor';
+  
+  public priority = 10; // Higher priority
+  public protocols = ['myservice:', 'https://myservice.com'];
+  
+  async activate() {
+    this.debug('MyExtractor activated with API key');
+    // Initialize API client
+  }
+  
+  async deactivate() {
+    this.debug('MyExtractor deactivated');
+    // Clean up resources
+  }
+  
+  async validate(query: string) {
+    return query.includes('myservice.com') || query.startsWith('myservice:');
+  }
+  
+  async handle(query: string, context: ExtractorSearchContext): Promise<ExtractorInfo> {
+    this.debug(`Searching for: ${query}`);
+    
+    // Search your service
+    const results = await this.searchAPI(query);
+    
+    // Convert to Track objects
+    const tracks = results.map(result => new Track(this.context.player, {
+      title: result.title,
+      author: result.artist,
+      url: result.url,
+      duration: result.duration,
+      thumbnail: result.thumbnail,
+      requestedBy: context.requestedBy
+    }));
+    
+    return this.createResponse(null, tracks);
+  }
+  
+  async stream(track: Track) {
+    this.debug(`Streaming: ${track.title}`);
+    
+    // Get stream URL from your service
+    const streamUrl = await this.getStreamUrl(track.url);
+    
+    return streamUrl; // Or return a Readable stream
+  }
+  
+  async getRelatedTracks(track: Track, history: GuildQueueHistory): Promise<ExtractorInfo> {
+    const related = await this.api.getRelated(track.url);
+    const tracks = related
+      .filter(t => !history.tracks.some(h => h.url === t.url))
+      .slice(0, 5)
+      .map(t => new Track(this.context.player, t));
+    
+    return this.createResponse(null, tracks);
+  }
+  
+  private async searchAPI(query: string) {
+    // Your API implementation
+    return [];
+  }
+  
+  private async getStreamUrl(url: string) {
+    // Your streaming implementation
+    return 'https://example.com/stream.mp3';
+  }
+}
+
+// Register the extractor
+await player.extractors.register(MyExtractor, {
+  apiKey: 'your-api-key',
+  timeout: 5000
+});
+```
+
+## Related
+
+- [ExtractorExecutionContext](/api/extractor-execution-context) - Extractor execution context
+- [Player](/api/player) - Main player class
+- [Track](/api/track) - Track class

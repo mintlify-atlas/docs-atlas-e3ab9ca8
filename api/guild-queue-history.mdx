@@ -1,0 +1,327 @@
+---
+title: GuildQueueHistory
+description: History management for guild queue playback
+icon: clock-rotate-left
+---
+
+## Overview
+
+The `GuildQueueHistory` class manages the playback history for a guild queue, allowing you to track previously played tracks and navigate backwards through them. It is accessible via `queue.history`.
+
+## Constructor
+
+```typescript
+new GuildQueueHistory<Meta = any>(queue: GuildQueue<Meta>)
+```
+
+<ParamField path="queue" type="GuildQueue<Meta>" required>
+  The guild queue instance that owns this history manager
+</ParamField>
+
+## Properties
+
+<ResponseField name="queue" type="GuildQueue<Meta>">
+  The guild queue instance associated with this history manager
+</ResponseField>
+
+<ResponseField name="tracks" type="Queue<Track>">
+  The LIFO (Last In First Out) queue storing track history
+</ResponseField>
+
+<ResponseField name="currentTrack" type="Track | null">
+  The currently playing track
+</ResponseField>
+
+<ResponseField name="nextTrack" type="Track | null">
+  The next track in the queue
+</ResponseField>
+
+<ResponseField name="previousTrack" type="Track | null">
+  The previous track in the history
+</ResponseField>
+
+<ResponseField name="disabled" type="boolean">
+  Whether history tracking is disabled for this queue
+</ResponseField>
+
+<ResponseField name="size" type="number">
+  The number of tracks stored in history
+</ResponseField>
+
+## Methods
+
+### isEmpty()
+
+Checks if the history is empty.
+
+```typescript
+history.isEmpty(): boolean
+```
+
+<ResponseField name="returns" type="boolean">
+  `true` if there are no tracks in history, `false` otherwise
+</ResponseField>
+
+**Example:**
+
+```typescript
+if (queue.history.isEmpty()) {
+  await interaction.reply('No tracks in history!');
+}
+```
+
+### getSize()
+
+Gets the size of the history.
+
+```typescript
+history.getSize(): number
+```
+
+<ResponseField name="returns" type="number">
+  The number of tracks in history
+</ResponseField>
+
+**Example:**
+
+```typescript
+const historySize = queue.history.getSize();
+await interaction.reply(`There are ${historySize} tracks in history`);
+```
+
+### push()
+
+Adds one or more tracks to the history.
+
+```typescript
+history.push(track: Track | Track[]): boolean
+```
+
+<ParamField path="track" type="Track | Track[]" required>
+  The track or array of tracks to add to history
+</ParamField>
+
+<ResponseField name="returns" type="boolean">
+  `true` if tracks were added successfully, `false` if history is disabled
+</ResponseField>
+
+**Example:**
+
+```typescript
+// Add single track
+queue.history.push(track);
+
+// Add multiple tracks
+queue.history.push([track1, track2, track3]);
+```
+
+### clear()
+
+Clears all tracks from history.
+
+```typescript
+history.clear(): void
+```
+
+**Example:**
+
+```typescript
+queue.history.clear();
+await interaction.reply('History cleared!');
+```
+
+### previous()
+
+Plays the previous track from history.
+
+```typescript
+async previous(preserveCurrent?: boolean): Promise<void>
+```
+
+<ParamField path="preserveCurrent" type="boolean" default="true">
+  If `true`, adds the current track to the front of the queue. If `false`, the current track is discarded
+</ParamField>
+
+**Example:**
+
+```typescript
+try {
+  // Play previous track and keep current track in queue
+  await queue.history.previous();
+  await interaction.reply('Playing previous track!');
+} catch (error) {
+  await interaction.reply('No previous track available!');
+}
+
+// Play previous track without preserving current
+await queue.history.previous(false);
+```
+
+**Throws:**
+- `NoResultError` if there is no previous track in history
+
+### back()
+
+Alias for `previous()`. Plays the previous track from history.
+
+```typescript
+async back(preserveCurrent?: boolean): Promise<void>
+```
+
+<ParamField path="preserveCurrent" type="boolean" default="true">
+  If `true`, adds the current track to the front of the queue
+</ParamField>
+
+**Example:**
+
+```typescript
+// Same as queue.history.previous()
+await queue.history.back();
+```
+
+### next()
+
+Skips to the next track in the queue.
+
+```typescript
+async next(): Promise<void>
+```
+
+**Example:**
+
+```typescript
+try {
+  await queue.history.next();
+  await interaction.reply('Playing next track!');
+} catch (error) {
+  await interaction.reply('No next track available!');
+}
+```
+
+**Throws:**
+- `NoResultError` if there is no next track in the queue
+
+### resize()
+
+Resizes the history store to respect the maximum history size.
+
+```typescript
+history.resize(): void
+```
+
+This method is automatically called when tracks are added to history. It removes old tracks if the history size exceeds `queue.maxHistorySize`.
+
+## Usage Examples
+
+### Basic History Navigation
+
+```typescript
+import { useQueue } from 'discord-player';
+
+export async function handlePrevious(interaction) {
+  const queue = useQueue(interaction.guildId);
+  
+  if (!queue) {
+    return interaction.reply('No active queue!');
+  }
+  
+  if (queue.history.isEmpty()) {
+    return interaction.reply('No previous tracks!');
+  }
+  
+  try {
+    await queue.history.previous();
+    await interaction.reply('Playing previous track!');
+  } catch (error) {
+    await interaction.reply('Failed to play previous track!');
+  }
+}
+```
+
+### Display History
+
+```typescript
+export async function showHistory(interaction) {
+  const queue = useQueue(interaction.guildId);
+  
+  if (!queue) {
+    return interaction.reply('No active queue!');
+  }
+  
+  const history = queue.history.tracks.toArray();
+  
+  if (history.length === 0) {
+    return interaction.reply('No tracks in history!');
+  }
+  
+  const historyList = history
+    .slice(0, 10)
+    .map((track, i) => `${i + 1}. ${track.title} - ${track.author}`)
+    .join('\n');
+  
+  await interaction.reply({
+    embeds: [{
+      title: 'Track History',
+      description: historyList,
+      footer: { text: `Total: ${queue.history.size} tracks` }
+    }]
+  });
+}
+```
+
+### Clear History
+
+```typescript
+export async function clearHistory(interaction) {
+  const queue = useQueue(interaction.guildId);
+  
+  if (!queue) {
+    return interaction.reply('No active queue!');
+  }
+  
+  const size = queue.history.size;
+  queue.history.clear();
+  
+  await interaction.reply(`Cleared ${size} tracks from history!`);
+}
+```
+
+### Navigate with Preserve Option
+
+```typescript
+export async function handlePreviousNoPreserve(interaction) {
+  const queue = useQueue(interaction.guildId);
+  
+  if (!queue || queue.history.isEmpty()) {
+    return interaction.reply('Cannot go back!');
+  }
+  
+  // Go back without preserving current track
+  await queue.history.previous(false);
+  await interaction.reply('Went back (current track discarded)');
+}
+```
+
+## Configuration
+
+History behavior can be configured when creating the queue:
+
+```typescript
+const queue = player.nodes.create(interaction.guild, {
+  // Disable history tracking
+  disableHistory: false,
+  
+  // Maximum number of tracks to keep in history
+  maxHistorySize: 100
+});
+```
+
+## Notes
+
+- History uses a LIFO (Last In First Out) queue structure
+- The most recently played track is at position 0
+- History is automatically managed as tracks play
+- When history is disabled (`disableHistory: true`), the `push()` method returns `false` and no tracks are stored
+- The `maxHistorySize` option controls how many tracks are kept in history. When exceeded, oldest tracks are removed
+- Using `previous()` removes the track from history and plays it
+- The `preserveCurrent` parameter in `previous()` allows you to control whether the current track stays in the queue

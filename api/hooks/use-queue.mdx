@@ -1,0 +1,259 @@
+---
+title: useQueue
+description: React-style hook to access guild queue instance
+icon: list
+---
+
+## Overview
+
+The `useQueue` hook provides access to the `GuildQueue` instance for a specific guild. It automatically infers the guild from the command context or accepts a custom node resolvable.
+
+## Usage
+
+```typescript
+import { useQueue } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('skip')
+    .setDescription('Skip the current song'),
+  async execute({ interaction }) {
+    const queue = useQueue();
+    
+    if (!queue) {
+      return interaction.reply('No music is playing!');
+    }
+    
+    queue.node.skip();
+    return interaction.reply('Skipped to next track!');
+  }
+});
+```
+
+## Signature
+
+```typescript
+function useQueue<Meta = unknown>(): GuildQueue<Meta> | null
+function useQueue<Meta = unknown>(node: NodeResolvable): GuildQueue<Meta> | null
+```
+
+## Parameters
+
+<ParamField path="node" type="NodeResolvable" optional>
+  Guild queue node resolvable (guild ID, Guild object, or GuildQueue). If not provided, defaults to the guild from the command context.
+</ParamField>
+
+## Type Parameters
+
+<ParamField path="Meta" type="unknown" optional>
+  Type of the queue metadata. Defaults to `unknown`.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="queue" type="GuildQueue<Meta> | null">
+  The guild queue instance if it exists, or `null` if no queue is found. The queue provides access to:
+  - `tracks` - Queue tracks collection
+  - `currentTrack` - Currently playing track
+  - `node` - Playback node for controls
+  - `history` - Queue history
+  - `metadata` - Custom queue metadata
+  - `filters` - Audio filters
+</ResponseField>
+
+## When to Use
+
+Use `useQueue` when you need to:
+
+- Check if music is playing in a guild
+- Access the current track or queue tracks
+- Control playback (skip, pause, resume)
+- Manage the queue (add, remove, shuffle tracks)
+- Access queue metadata
+
+## Example: Skip Command
+
+```typescript
+import { useQueue } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('skip')
+    .setDescription('Skip the current song'),
+  async execute({ interaction }) {
+    const queue = useQueue();
+    
+    if (!queue) {
+      return interaction.reply('❌ No music is playing!');
+    }
+    
+    if (!queue.currentTrack) {
+      return interaction.reply('❌ No track is currently playing!');
+    }
+    
+    const skipped = queue.currentTrack;
+    queue.node.skip();
+    
+    return interaction.reply(`⏭️ Skipped **${skipped.title}**`);
+  }
+});
+```
+
+## Example: Now Playing Command
+
+```typescript
+import { useQueue } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('nowplaying')
+    .setDescription('Show currently playing track'),
+  async execute({ interaction }) {
+    const queue = useQueue();
+    
+    if (!queue || !queue.currentTrack) {
+      return interaction.reply('Nothing is playing!');
+    }
+    
+    const track = queue.currentTrack;
+    const timestamp = queue.node.getTimestamp();
+    const progress = queue.node.createProgressBar();
+    
+    return interaction.reply({
+      embeds: [{
+        title: 'Now Playing',
+        description: `**${track.title}**\n${track.author}`,
+        fields: [
+          {
+            name: 'Duration',
+            value: `${timestamp.current.label} / ${timestamp.total.label}`,
+            inline: true
+          },
+          {
+            name: 'Progress',
+            value: progress
+          }
+        ],
+        thumbnail: { url: track.thumbnail }
+      }]
+    });
+  }
+});
+```
+
+## Example: Queue Command
+
+```typescript
+import { useQueue } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('queue')
+    .setDescription('Show the current queue'),
+  async execute({ interaction }) {
+    const queue = useQueue();
+    
+    if (!queue) {
+      return interaction.reply('No music is playing!');
+    }
+    
+    const tracks = queue.tracks.toArray();
+    
+    if (!queue.currentTrack && tracks.length === 0) {
+      return interaction.reply('The queue is empty!');
+    }
+    
+    let description = '';
+    
+    if (queue.currentTrack) {
+      description += `**Now Playing:**\n${queue.currentTrack.title}\n\n`;
+    }
+    
+    if (tracks.length > 0) {
+      description += '**Up Next:**\n';
+      description += tracks.slice(0, 10).map((track, i) => 
+        `${i + 1}. ${track.title}`
+      ).join('\n');
+      
+      if (tracks.length > 10) {
+        description += `\n\n...and ${tracks.length - 10} more tracks`;
+      }
+    }
+    
+    return interaction.reply({
+      embeds: [{
+        title: 'Queue',
+        description
+      }]
+    });
+  }
+});
+```
+
+## Example: With Custom Guild
+
+```typescript
+import { useQueue } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('check-queue')
+    .setDescription('Check queue for a specific guild')
+    .addStringOption(option =>
+      option.setName('guild-id')
+        .setDescription('Guild ID to check')
+        .setRequired(true)
+    ),
+  async execute({ interaction }) {
+    const guildId = interaction.options.getString('guild-id', true);
+    const queue = useQueue(guildId);
+    
+    if (!queue) {
+      return interaction.reply(`No queue found for guild ${guildId}`);
+    }
+    
+    return interaction.reply(
+      `Queue has ${queue.tracks.size} tracks in guild ${guildId}`
+    );
+  }
+});
+```
+
+## Example: With Typed Metadata
+
+```typescript
+import { useQueue } from 'discord-player';
+import { ChatInputCommandInteraction } from 'discord.js';
+
+interface QueueMetadata {
+  interaction: ChatInputCommandInteraction;
+  channel: TextChannel;
+}
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('announce')
+    .setDescription('Announce current track'),
+  async execute({ interaction }) {
+    const queue = useQueue<QueueMetadata>();
+    
+    if (!queue) {
+      return interaction.reply('No music is playing!');
+    }
+    
+    // TypeScript knows metadata.channel exists
+    await queue.metadata.channel.send(
+      `Now playing: ${queue.currentTrack?.title}`
+    );
+    
+    return interaction.reply('Announced!');
+  }
+});
+```
+
+## Related Hooks
+
+- [useMainPlayer](/api/hooks/use-main-player) - Access main player
+- [useHistory](/api/hooks/use-history) - Access queue history
+- [useTimeline](/api/hooks/use-timeline) - Control playback
+- [useMetadata](/api/hooks/use-metadata) - Manage queue metadata

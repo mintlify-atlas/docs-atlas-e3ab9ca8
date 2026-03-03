@@ -1,0 +1,246 @@
+---
+title: Installation
+description: Install Discord Player and all required dependencies to start building your music bot
+---
+
+# Installation
+
+This guide will walk you through installing Discord Player and all the required dependencies.
+
+## Prerequisites
+
+<Warning>
+  Discord Player requires **Discord.js 14.0 or higher**. Please ensure that you have a compatible version before proceeding.
+</Warning>
+
+Check your current Discord.js version:
+
+```bash
+npm list discord.js
+```
+
+If you're using an earlier version, update it first. The [discord.js Guide](https://discordjs.guide) provides resources to assist you with the update process.
+
+## Installation Steps
+
+<Steps>
+  <Step title="Install Discord Player">
+    Install the main Discord Player library and the extractors package:
+
+    <CodeGroup>
+      ```bash npm
+      npm install discord-player @discord-player/extractor
+      ```
+
+      ```bash yarn
+      yarn add discord-player @discord-player/extractor
+      ```
+
+      ```bash pnpm
+      pnpm add discord-player @discord-player/extractor
+      ```
+
+      ```bash bun
+      bun add discord-player @discord-player/extractor
+      ```
+    </CodeGroup>
+
+    <Info>
+      The `@discord-player/extractor` package provides default extractors for popular platforms like YouTube, Spotify, SoundCloud, and more.
+    </Info>
+  </Step>
+
+  <Step title="Install Opus Library">
+    We recommend **mediaplex** for libopus. Mediaplex also helps with audio metadata extraction:
+
+    <CodeGroup>
+      ```bash npm
+      npm install mediaplex
+      ```
+
+      ```bash yarn
+      yarn add mediaplex
+      ```
+
+      ```bash pnpm
+      pnpm add mediaplex
+      ```
+
+      ```bash bun
+      bun add mediaplex
+      ```
+    </CodeGroup>
+
+    <Note>
+      Opus is required for encoding audio data. Without an opus library, Discord Player won't be able to stream audio to Discord.
+    </Note>
+  </Step>
+
+  <Step title="Install FFmpeg">
+    FFmpeg or Avconv is required for media transcoding. You can install it from the official website or via npm.
+
+    ### Recommended: System Installation
+
+    Download and install FFmpeg from [https://ffmpeg.org](https://ffmpeg.org)
+
+    <Warning>
+      We **do not recommend** installing FFmpeg via npm because binaries pulled from npm are known to be unstable. It is recommended to install it from the official source.
+    </Warning>
+
+    ### Alternative: NPM Installation
+
+    If you must install via npm, choose one of these packages:
+
+    <CodeGroup>
+      ```bash ffmpeg-static
+      npm install ffmpeg-static
+      ```
+
+      ```bash @ffmpeg-installer/ffmpeg
+      npm install @ffmpeg-installer/ffmpeg
+      ```
+
+      ```bash @node-ffmpeg/node-ffmpeg-installer
+      npm install @node-ffmpeg/node-ffmpeg-installer
+      ```
+
+      ```bash ffmpeg-binaries
+      npm install ffmpeg-binaries
+      ```
+    </CodeGroup>
+
+    <Tip>
+      Use the `FFMPEG_PATH` environment variable to load FFmpeg from a custom path if needed.
+    </Tip>
+  </Step>
+
+  <Step title="Verify Installation">
+    Create a simple script to verify your installation:
+
+    ```javascript verify.js
+    const { Player } = require('discord-player');
+    const { Client } = require('discord.js');
+
+    const client = new Client({
+      intents: ['Guilds', 'GuildVoiceStates'],
+    });
+
+    const player = new Player(client);
+
+    console.log(player.scanDeps());
+    ```
+
+    Run the script:
+
+    ```bash
+    node verify.js
+    ```
+
+    You should see output showing the versions of all installed dependencies:
+
+    ```
+    Discord Player
+    --------------------------------------------------
+    - discord-player: 7.2.0
+    - discord-voip: x.x.x
+    - discord.js: 14.x.x
+    - Node version: vx.x.x (Detected Runtime: Node, Platform: ...)
+    - ffmpeg: x.x.x
+    - command: ffmpeg
+    - libopus: true
+
+    Loaded Extractors:
+    --------------------------------------------------
+    N/A
+    ```
+
+    <Note>
+      The extractors list will be empty until you load them in your main application.
+    </Note>
+  </Step>
+</Steps>
+
+## Optional Dependencies
+
+### Additional Extractors
+
+While `@discord-player/extractor` provides most common extractors, you can install additional packages for specific platforms:
+
+```bash
+npm install play-dl youtube-sr ytdl-core
+```
+
+### Custom FFmpeg Path
+
+If you need to specify a custom FFmpeg path, you can do so when creating the Player instance:
+
+```javascript
+const player = new Player(client, {
+  ffmpegPath: '/path/to/ffmpeg',
+});
+```
+
+Or set it as an environment variable:
+
+```bash
+export FFMPEG_PATH=/path/to/ffmpeg
+```
+
+## Dependency Overview
+
+Here's what each dependency does:
+
+| Package | Purpose | Required |
+|---------|---------|----------|
+| `discord-player` | Core framework | Yes |
+| `@discord-player/extractor` | Default extractors for audio sources | Yes |
+| `discord.js` | Discord API wrapper | Yes |
+| `mediaplex` | Opus encoding/decoding | Yes |
+| `ffmpeg` | Audio/video transcoding | Yes |
+
+## Troubleshooting
+
+### FFmpeg Not Found
+
+If you get an error that FFmpeg is not found:
+
+1. Ensure FFmpeg is installed and available in your system PATH
+2. Try setting the `FFMPEG_PATH` environment variable
+3. Use the `ffmpegPath` option when creating the Player instance
+
+### Opus Library Issues
+
+If you encounter opus-related errors:
+
+1. Make sure you've installed `mediaplex`
+2. Try reinstalling the package: `npm install mediaplex --force`
+3. Check that your Node.js version is compatible
+
+### Discord.js Version Mismatch
+
+If you see warnings about Discord.js version:
+
+1. Update Discord.js to v14.0 or higher: `npm install discord.js@latest`
+2. Clear your node_modules and reinstall: `rm -rf node_modules && npm install`
+
+### Missing GuildVoiceStates Intent
+
+If voice connections aren't working:
+
+```javascript
+const client = new Client({
+  intents: [
+    'Guilds',
+    'GuildVoiceStates', // This is required!
+    'GuildMessages',
+  ],
+});
+```
+
+<Warning>
+  Without the `GuildVoiceStates` intent, Discord Player cannot handle voice state updates and won't be able to connect to voice channels properly.
+</Warning>
+
+## Next Steps
+
+Now that you have Discord Player installed, proceed to the [Quick Start](/quickstart) guide to create your first music bot!

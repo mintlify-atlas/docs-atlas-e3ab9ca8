@@ -1,0 +1,488 @@
+---
+title: Track & Playlist
+description: Understanding Track and Playlist objects in Discord Player
+icon: music
+---
+
+Tracks and Playlists are the fundamental objects representing music in Discord Player. They contain metadata, playback information, and methods for manipulation.
+
+## Track Object
+
+The `Track` class represents a single audio track.
+
+### Track Properties
+
+```typescript
+track.id              // Unique snowflake ID
+track.title           // Track title
+track.author          // Track artist/author
+track.url             // Track URL
+track.thumbnail       // Thumbnail URL
+track.duration        // Duration string (e.g., "3:45")
+track.durationMS      // Duration in milliseconds
+track.description     // Track description
+track.views           // View count
+track.source          // Source platform (youtube, spotify, etc.)
+track.queryType       // Query type used to find this track
+track.requestedBy     // User who requested the track
+track.playlist        // Parent playlist (if any)
+track.live            // Whether this is a live stream
+track.extractor       // Extractor that provided this track
+```
+
+### Creating Tracks
+
+Tracks are typically created automatically through searches:
+
+```typescript
+const result = await player.search('Alan Walker - Faded');
+const track = result.tracks[0];
+```
+
+Manually create a track:
+
+```typescript
+import { Track } from 'discord-player';
+
+const track = new Track(player, {
+  title: 'My Custom Track',
+  author: 'Artist Name',
+  url: 'https://example.com/track',
+  duration: '3:45',
+  thumbnail: 'https://example.com/thumb.jpg',
+  source: 'arbitrary',
+  requestedBy: interaction.user
+});
+```
+
+### Track Methods
+
+#### toJSON()
+
+Get JSON representation:
+
+```typescript
+const json = track.toJSON();
+// {
+//   id: '123456789',
+//   title: 'Track Title',
+//   author: 'Artist Name',
+//   url: 'https://...',
+//   duration: '3:45',
+//   durationMS: 225000,
+//   ...
+// }
+```
+
+#### toHyperlink()
+
+Get Discord markdown hyperlink:
+
+```typescript
+const link = track.toHyperlink();
+// [Track Title](https://track-url.com)
+
+await channel.send(`Now playing: ${link}`);
+```
+
+#### toString()
+
+Get string representation:
+
+```typescript
+const str = track.toString();
+// "Track Title by Artist Name"
+```
+
+#### play()
+
+Play the track directly:
+
+```typescript
+const { queue } = await track.play(voiceChannel, {
+  nodeOptions: {
+    metadata: { channel: interaction.channel }
+  }
+});
+```
+
+### Track Metadata
+
+Attach custom metadata to tracks:
+
+```typescript
+interface MyTrackMetadata {
+  addedBy: string;
+  timestamp: number;
+}
+
+const track = new Track<MyTrackMetadata>(player, {
+  title: 'Song',
+  author: 'Artist',
+  url: 'https://...',
+  duration: '3:00',
+  metadata: {
+    addedBy: 'User123',
+    timestamp: Date.now()
+  }
+});
+
+// Access metadata
+console.log(track.metadata.addedBy);
+
+// Set metadata
+track.setMetadata({ addedBy: 'User456', timestamp: Date.now() });
+
+// Request async metadata
+const metadata = await track.requestMetadata();
+```
+
+### Serialization
+
+Serialize and deserialize tracks:
+
+```typescript
+// Serialize for storage
+const serialized = track.serialize();
+await saveToDatabase(JSON.stringify(serialized));
+
+// Deserialize from storage
+const data = JSON.parse(await loadFromDatabase());
+const track = Track.fromSerialized(player, data);
+```
+
+### Track Source
+
+Get the track's source platform:
+
+```typescript
+switch (track.source) {
+  case 'youtube':
+    console.log('From YouTube');
+    break;
+  case 'spotify':
+    console.log('From Spotify');
+    break;
+  case 'soundcloud':
+    console.log('From SoundCloud');
+    break;
+  case 'apple_music':
+    console.log('From Apple Music');
+    break;
+  case 'arbitrary':
+    console.log('From custom source');
+    break;
+}
+```
+
+### Getting Track Queue
+
+Find which queue contains a track:
+
+```typescript
+const queue = track.queue;
+
+// Get all queues containing this track
+const queues = track.getBelongingQueues();
+```
+
+### Seeking Support
+
+Check and control seek functionality:
+
+```typescript
+// Check if track supports seeking
+if (track.seekable) {
+  await track.seek({ seekTarget: 60000 }); // Seek to 1 minute
+}
+
+// Set custom seek handler
+track.handleSeek(async (event) => {
+  console.log(`Seeking to ${event.seekTarget}ms`);
+  // Custom seek logic
+});
+```
+
+### Audio Resource
+
+Access the underlying audio resource:
+
+```typescript
+// Check if track has audio resource
+if (track.hasResource) {
+  const resource = track.resource;
+  console.log(`Resource: ${resource.playbackDuration}ms`);
+}
+```
+
+## Playlist Object
+
+The `Playlist` class represents a collection of tracks.
+
+### Playlist Properties
+
+```typescript
+playlist.id              // Playlist ID
+playlist.title           // Playlist title
+playlist.description     // Playlist description
+playlist.thumbnail       // Playlist thumbnail
+playlist.type            // 'playlist' or 'album'
+playlist.source          // Source platform
+playlist.url             // Playlist URL
+playlist.tracks          // Array of Track objects
+playlist.author          // Playlist author info
+  .name                  // Author name
+  .url                   // Author URL
+```
+
+### Creating Playlists
+
+Playlists are typically created from search results:
+
+```typescript
+const result = await player.search('spotify-playlist-url');
+if (result.playlist) {
+  console.log(`Loaded playlist: ${result.playlist.title}`);
+  console.log(`Tracks: ${result.playlist.tracks.length}`);
+}
+```
+
+Create a custom playlist:
+
+```typescript
+import { Playlist } from 'discord-player';
+
+const playlist = player.createPlaylist({
+  title: 'My Playlist',
+  description: 'Custom playlist',
+  thumbnail: 'https://example.com/thumb.jpg',
+  type: 'playlist',
+  source: 'arbitrary',
+  author: {
+    name: 'User',
+    url: 'https://example.com/user'
+  },
+  id: 'custom-123',
+  url: 'https://example.com/playlist',
+  tracks: [track1, track2, track3]
+});
+```
+
+### Playlist Methods
+
+#### Iteration
+
+Playlists are iterable:
+
+```typescript
+// Iterate over tracks
+for (const track of playlist) {
+  console.log(track.title);
+}
+
+// Map tracks
+const titles = playlist.tracks.map(t => t.title);
+```
+
+#### Duration
+
+Get total playlist duration:
+
+```typescript
+// Duration in milliseconds
+const duration = playlist.estimatedDuration;
+
+// Formatted duration
+const formatted = playlist.durationFormatted;
+console.log(`Total duration: ${formatted}`);
+```
+
+#### toJSON()
+
+Get JSON representation:
+
+```typescript
+const json = playlist.toJSON();
+// {
+//   id: '123',
+//   title: 'Playlist Name',
+//   tracks: [...],
+//   ...
+// }
+
+// Without tracks
+const jsonNoTracks = playlist.toJSON(false);
+```
+
+#### play()
+
+Play the entire playlist:
+
+```typescript
+const { queue } = await playlist.play(voiceChannel, {
+  nodeOptions: {
+    metadata: { channel: interaction.channel }
+  }
+});
+```
+
+### Serialization
+
+Serialize and deserialize playlists:
+
+```typescript
+// Serialize
+const serialized = playlist.serialize();
+await saveToDatabase(JSON.stringify(serialized));
+
+// Deserialize
+const data = JSON.parse(await loadFromDatabase());
+const playlist = Playlist.fromSerialized(player, data);
+```
+
+## Working with Search Results
+
+The `SearchResult` object contains tracks and/or playlists:
+
+```typescript
+const result = await player.search('search query');
+
+// Check if results exist
+if (result.isEmpty()) {
+  console.log('No results found');
+  return;
+}
+
+// Access tracks
+const tracks = result.tracks;
+console.log(`Found ${tracks.length} tracks`);
+
+// Check for playlist
+if (result.playlist) {
+  console.log(`Playlist: ${result.playlist.title}`);
+}
+
+// Get extractor info
+const extractor = result.extractor;
+console.log(`Extractor: ${extractor?.identifier}`);
+```
+
+## Track Resolution
+
+Tracks can be resolved in multiple ways:
+
+```typescript
+// By Track object
+queue.removeTrack(track);
+
+// By track ID
+queue.removeTrack(track.id);
+
+// By index
+queue.removeTrack(0);
+```
+
+## Example: Track Management
+
+```typescript
+import { Player, QueueRepeatMode } from 'discord-player';
+
+// Search and add tracks
+const result = await player.search('My Playlist', {
+  requestedBy: interaction.user
+});
+
+if (result.playlist) {
+  // Add entire playlist
+  queue.addTrack(result.playlist);
+  await interaction.reply(
+    `Added **${result.playlist.tracks.length}** tracks from **${result.playlist.title}**`
+  );
+} else {
+  // Add single track
+  const track = result.tracks[0];
+  queue.addTrack(track);
+  
+  await interaction.reply(
+    `Added ${track.toHyperlink()} [${track.duration}] to the queue`
+  );
+}
+
+// Display track info
+const current = queue.currentTrack;
+if (current) {
+  const embed = new EmbedBuilder()
+    .setTitle(current.title)
+    .setURL(current.url)
+    .setAuthor({ name: current.author })
+    .setThumbnail(current.thumbnail)
+    .addFields(
+      { name: 'Duration', value: current.duration, inline: true },
+      { name: 'Source', value: current.source, inline: true },
+      { name: 'Requested By', value: current.requestedBy?.tag || 'Unknown', inline: true }
+    );
+  
+  await channel.send({ embeds: [embed] });
+}
+```
+
+## Example: Custom Track Source
+
+```typescript
+import { Track, QueryType } from 'discord-player';
+import { AudioResource } from 'discord-voip';
+
+// Create track from audio resource
+const audioResource = new AudioResource({
+  metadata: {
+    title: 'Custom Audio',
+    author: 'System',
+    duration: '5:00'
+  }
+});
+
+const track = player.createTrackFromAudioResource(audioResource);
+queue.addTrack(track);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Clean Track Titles">
+    Use `track.cleanTitle` for sanitized titles without special characters:
+    
+    ```typescript
+    console.log(track.title);      // "[Official Video] Song Name"
+    console.log(track.cleanTitle); // "Song Name"
+    ```
+  </Accordion>
+
+  <Accordion title="Track Metadata for Context">
+    Store interaction context in track metadata for later use:
+    
+    ```typescript
+    const track = result.tracks[0];
+    track.setMetadata({
+      channel: interaction.channel,
+      user: interaction.user
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Handling Live Streams">
+    Check if a track is a live stream:
+    
+    ```typescript
+    if (track.live) {
+      console.log('This is a live stream');
+      // Seeking might not be available
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## See Also
+
+- [Player](/core/player) - Learn about the Player class
+- [GuildQueue](/core/queue) - Queue management
+- [Events](/core/events) - Track-related events

@@ -1,0 +1,356 @@
+---
+title: GuildQueueStatistics
+description: Statistics and metrics for guild queue monitoring
+icon: chart-line
+---
+
+## Overview
+
+The `GuildQueueStatistics` class provides comprehensive statistics and metrics about a guild queue's state, including latency, playback status, track counts, and memory usage. It is accessible via `queue.stats`.
+
+## Constructor
+
+```typescript
+new GuildQueueStatistics<Meta = any>(queue: GuildQueue<Meta>)
+```
+
+<ParamField path="queue" type="GuildQueue<Meta>" required>
+  The guild queue instance to generate statistics for
+</ParamField>
+
+## Properties
+
+<ResponseField name="queue" type="GuildQueue<Meta>">
+  The guild queue instance associated with this statistics manager
+</ResponseField>
+
+## Methods
+
+### generate()
+
+Generates a comprehensive statistics snapshot of the current queue state.
+
+```typescript
+stats.generate(): GuildQueueStatisticsMetadata
+```
+
+<ResponseField name="returns" type="GuildQueueStatisticsMetadata">
+  Complete statistics object containing various metrics
+  
+  <Expandable title="GuildQueueStatisticsMetadata properties">
+    <ResponseField name="latency" type="object">
+      Latency information
+      
+      <Expandable title="properties">
+        <ResponseField name="eventLoop" type="number">
+          Event loop lag in milliseconds
+        </ResponseField>
+        
+        <ResponseField name="voiceConnection" type="number">
+          Voice connection ping in milliseconds
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="status" type="object">
+      Current playback status
+      
+      <Expandable title="properties">
+        <ResponseField name="buffering" type="boolean">
+          Whether the player is currently buffering
+        </ResponseField>
+        
+        <ResponseField name="playing" type="boolean">
+          Whether the player is currently playing
+        </ResponseField>
+        
+        <ResponseField name="paused" type="boolean">
+          Whether the player is currently paused
+        </ResponseField>
+        
+        <ResponseField name="idle" type="boolean">
+          Whether the player is currently idle
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="tracksCount" type="number">
+      Number of tracks in the queue
+    </ResponseField>
+    
+    <ResponseField name="historySize" type="number">
+      Number of tracks in the history
+    </ResponseField>
+    
+    <ResponseField name="extractors" type="number">
+      Number of registered extractors
+    </ResponseField>
+    
+    <ResponseField name="listeners" type="number">
+      Number of non-bot users in the voice channel
+    </ResponseField>
+    
+    <ResponseField name="memoryUsage" type="NodeJS.MemoryUsage">
+      Current memory usage of the Node.js process
+      
+      <Expandable title="NodeJS.MemoryUsage properties">
+        <ResponseField name="rss" type="number">
+          Resident Set Size - total memory allocated for the process
+        </ResponseField>
+        
+        <ResponseField name="heapTotal" type="number">
+          Total size of the allocated heap
+        </ResponseField>
+        
+        <ResponseField name="heapUsed" type="number">
+          Actual memory used during execution
+        </ResponseField>
+        
+        <ResponseField name="external" type="number">
+          Memory used by C++ objects bound to JavaScript
+        </ResponseField>
+        
+        <ResponseField name="arrayBuffers" type="number">
+          Memory allocated for ArrayBuffers and SharedArrayBuffers
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="versions" type="object">
+      Version information
+      
+      <Expandable title="properties">
+        <ResponseField name="node" type="string">
+          Node.js version (e.g., "v20.11.0")
+        </ResponseField>
+        
+        <ResponseField name="player" type="string">
+          Discord Player version
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+const stats = queue.stats.generate();
+
+console.log('Queue Statistics:');
+console.log('- Event Loop Lag:', stats.latency.eventLoop, 'ms');
+console.log('- Voice Ping:', stats.latency.voiceConnection, 'ms');
+console.log('- Playing:', stats.status.playing);
+console.log('- Paused:', stats.status.paused);
+console.log('- Tracks in Queue:', stats.tracksCount);
+console.log('- History Size:', stats.historySize);
+console.log('- Listeners:', stats.listeners);
+console.log('- Memory (Heap Used):', Math.round(stats.memoryUsage.heapUsed / 1024 / 1024), 'MB');
+console.log('- Node Version:', stats.versions.node);
+console.log('- Player Version:', stats.versions.player);
+```
+
+## Usage Examples
+
+### Display Queue Statistics
+
+```typescript
+import { EmbedBuilder } from 'discord.js';
+import { useQueue } from 'discord-player';
+
+export async function showStats(interaction) {
+  const queue = useQueue(interaction.guildId);
+  
+  if (!queue) {
+    return interaction.reply('No active queue!');
+  }
+  
+  const stats = queue.stats.generate();
+  
+  const embed = new EmbedBuilder()
+    .setTitle('Queue Statistics')
+    .setColor('#0099ff')
+    .addFields(
+      {
+        name: 'Latency',
+        value: [
+          `Event Loop: ${stats.latency.eventLoop}ms`,
+          `Voice Connection: ${stats.latency.voiceConnection}ms`
+        ].join('\n'),
+        inline: true
+      },
+      {
+        name: 'Status',
+        value: [
+          `Playing: ${stats.status.playing ? '✅' : '❌'}`,
+          `Paused: ${stats.status.paused ? '✅' : '❌'}`,
+          `Buffering: ${stats.status.buffering ? '✅' : '❌'}`
+        ].join('\n'),
+        inline: true
+      },
+      {
+        name: 'Queue Info',
+        value: [
+          `Tracks: ${stats.tracksCount}`,
+          `History: ${stats.historySize}`,
+          `Listeners: ${stats.listeners}`
+        ].join('\n'),
+        inline: true
+      },
+      {
+        name: 'Memory Usage',
+        value: [
+          `Heap: ${Math.round(stats.memoryUsage.heapUsed / 1024 / 1024)}MB / ${Math.round(stats.memoryUsage.heapTotal / 1024 / 1024)}MB`,
+          `RSS: ${Math.round(stats.memoryUsage.rss / 1024 / 1024)}MB`
+        ].join('\n'),
+        inline: false
+      },
+      {
+        name: 'Versions',
+        value: [
+          `Node.js: ${stats.versions.node}`,
+          `Discord Player: ${stats.versions.player}`,
+          `Extractors: ${stats.extractors}`
+        ].join('\n'),
+        inline: false
+      }
+    );
+  
+  await interaction.reply({ embeds: [embed] });
+}
+```
+
+### Monitor Performance
+
+```typescript
+export function monitorQueuePerformance(queue) {
+  setInterval(() => {
+    const stats = queue.stats.generate();
+    
+    // Check for high event loop lag
+    if (stats.latency.eventLoop > 100) {
+      console.warn(`High event loop lag detected: ${stats.latency.eventLoop}ms`);
+    }
+    
+    // Check for high voice connection latency
+    if (stats.latency.voiceConnection > 200) {
+      console.warn(`High voice latency detected: ${stats.latency.voiceConnection}ms`);
+    }
+    
+    // Check memory usage
+    const heapUsedMB = stats.memoryUsage.heapUsed / 1024 / 1024;
+    if (heapUsedMB > 500) {
+      console.warn(`High memory usage detected: ${Math.round(heapUsedMB)}MB`);
+    }
+  }, 30000); // Check every 30 seconds
+}
+```
+
+### Health Check Endpoint
+
+```typescript
+import express from 'express';
+import { useMainPlayer } from 'discord-player';
+
+const app = express();
+const player = useMainPlayer();
+
+app.get('/health/queue/:guildId', (req, res) => {
+  const queue = player.nodes.get(req.params.guildId);
+  
+  if (!queue) {
+    return res.status(404).json({ error: 'Queue not found' });
+  }
+  
+  const stats = queue.stats.generate();
+  
+  // Determine health status
+  const isHealthy = 
+    stats.latency.eventLoop < 100 &&
+    stats.latency.voiceConnection < 200 &&
+    !stats.status.buffering;
+  
+  res.json({
+    healthy: isHealthy,
+    statistics: stats
+  });
+});
+```
+
+### Log Statistics
+
+```typescript
+export function logQueueStats(queue) {
+  const stats = queue.stats.generate();
+  
+  const logData = {
+    timestamp: new Date().toISOString(),
+    guild: queue.guild.name,
+    latency: stats.latency,
+    status: stats.status,
+    tracks: stats.tracksCount,
+    history: stats.historySize,
+    listeners: stats.listeners,
+    memory: {
+      heapUsed: Math.round(stats.memoryUsage.heapUsed / 1024 / 1024),
+      heapTotal: Math.round(stats.memoryUsage.heapTotal / 1024 / 1024)
+    }
+  };
+  
+  console.log('Queue Stats:', JSON.stringify(logData, null, 2));
+}
+```
+
+### Performance Dashboard
+
+```typescript
+import { useQueue } from 'discord-player';
+
+export async function showDashboard(interaction) {
+  const queue = useQueue(interaction.guildId);
+  
+  if (!queue) {
+    return interaction.reply('No active queue!');
+  }
+  
+  const stats = queue.stats.generate();
+  
+  // Create performance indicators
+  const latencyIndicator = stats.latency.voiceConnection < 100 ? '🟢' : 
+                          stats.latency.voiceConnection < 200 ? '🟡' : '🔴';
+  
+  const eventLoopIndicator = stats.latency.eventLoop < 50 ? '🟢' : 
+                            stats.latency.eventLoop < 100 ? '🟡' : '🔴';
+  
+  const memoryPercent = (stats.memoryUsage.heapUsed / stats.memoryUsage.heapTotal) * 100;
+  const memoryIndicator = memoryPercent < 70 ? '🟢' : 
+                         memoryPercent < 90 ? '🟡' : '🔴';
+  
+  const dashboard = [
+    '**Performance Dashboard**',
+    '',
+    `${latencyIndicator} Voice Latency: ${stats.latency.voiceConnection}ms`,
+    `${eventLoopIndicator} Event Loop: ${stats.latency.eventLoop}ms`,
+    `${memoryIndicator} Memory: ${Math.round(memoryPercent)}% (${Math.round(stats.memoryUsage.heapUsed / 1024 / 1024)}MB)`,
+    '',
+    '**Queue Status**',
+    `Playing: ${stats.status.playing ? '✅' : '❌'}`,
+    `Tracks: ${stats.tracksCount}`,
+    `Listeners: ${stats.listeners}`,
+    '',
+    `Node.js ${stats.versions.node} | Discord Player ${stats.versions.player}`
+  ].join('\n');
+  
+  await interaction.reply(dashboard);
+}
+```
+
+## Notes
+
+- Statistics are generated on-demand and represent a snapshot at the time of the call
+- Event loop lag is measured by the player instance and shared across all queues
+- Voice connection latency represents the WebSocket ping to Discord
+- Memory usage reflects the entire Node.js process, not just the queue
+- The `listeners` count excludes bots
+- Use statistics for monitoring, debugging, and performance optimization
+- Consider caching statistics if calling `generate()` frequently to avoid performance overhead

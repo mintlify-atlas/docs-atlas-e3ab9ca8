@@ -1,0 +1,540 @@
+---
+title: Error Handling
+description: Best practices for handling errors in Discord Player
+icon: triangle-exclamation
+---
+
+## Overview
+
+Discord Player provides comprehensive error handling with custom error types, error codes, and multiple error events. This guide covers all error scenarios and how to handle them properly.
+
+## Error Types
+
+All Discord Player errors extend `DiscordPlayerError` and include an error code:
+
+### Connection Errors
+
+<CodeGroup>
+```typescript NoVoiceConnectionError
+import { NoVoiceConnectionError } from 'discord-player';
+
+try {
+  await queue.play(track);
+} catch (error) {
+  if (error instanceof NoVoiceConnectionError) {
+    await interaction.reply('Not connected to a voice channel!');
+  }
+}
+```
+
+```typescript VoiceConnectionDestroyedError
+import { VoiceConnectionDestroyedError } from 'discord-player';
+
+try {
+  queue.createDispatcher(connection);
+} catch (error) {
+  if (error instanceof VoiceConnectionDestroyedError) {
+    await interaction.reply('Voice connection was destroyed!');
+  }
+}
+```
+
+```typescript NoVoiceChannelError
+import { NoVoiceChannelError } from 'discord-player';
+
+try {
+  await queue.connect(channel);
+} catch (error) {
+  if (error instanceof NoVoiceChannelError) {
+    await interaction.reply('Could not find voice channel!');
+  }
+}
+```
+</CodeGroup>
+
+### Validation Errors
+
+<CodeGroup>
+```typescript InvalidArgTypeError
+import { InvalidArgTypeError } from 'discord-player';
+
+// Thrown when wrong type is passed
+try {
+  queue.setMaxSize('invalid'); // Should be number
+} catch (error) {
+  if (error instanceof InvalidArgTypeError) {
+    console.error(error.message);
+    // "Expected size to be 'number', received 'string'"
+  }
+}
+```
+
+```typescript OutOfRangeError
+import { OutOfRangeError } from 'discord-player';
+
+try {
+  queue.prepend(track, -1); // Invalid index
+} catch (error) {
+  if (error instanceof OutOfRangeError) {
+    console.error(error.message);
+    // "index is out of range (Expected minimum 0 and maximum X, got -1)"
+  }
+}
+```
+</CodeGroup>
+
+### Resource Errors
+
+<CodeGroup>
+```typescript NoResultError
+import { NoResultError } from 'discord-player';
+
+try {
+  const { track } = await player.play(channel, 'invalid query');
+} catch (error) {
+  if (error instanceof NoResultError) {
+    await interaction.reply('No results found!');
+  }
+}
+```
+
+```typescript OutOfSpaceError
+import { OutOfSpaceError } from 'discord-player';
+
+try {
+  queue.addTrack(track);
+} catch (error) {
+  if (error instanceof OutOfSpaceError) {
+    await interaction.reply(
+      `Queue is full! (${queue.maxSize} tracks maximum)`
+    );
+  }
+}
+```
+
+```typescript NoGuildQueueError
+import { NoGuildQueueError } from 'discord-player';
+
+const queue = player.nodes.get(interaction.guildId);
+if (!queue) {
+  throw new NoGuildQueueError('No queue found for this server');
+}
+```
+</CodeGroup>
+
+### System Errors
+
+<CodeGroup>
+```typescript FFmpegError
+import { FFmpegError } from 'discord-player';
+
+player.events.on('playerError', (queue, error, track) => {
+  if (error instanceof FFmpegError) {
+    console.error('FFmpeg error:', error.message);
+  }
+});
+```
+
+```typescript ModuleNotFoundError
+import { ModuleNotFoundError } from 'discord-player';
+
+try {
+  await player.extractors.loadDefault();
+} catch (error) {
+  if (error instanceof ModuleNotFoundError) {
+    console.error('Missing dependency:', error.message);
+  }
+}
+```
+</CodeGroup>
+
+## Error Codes
+
+All errors have an associated error code:
+
+```typescript index.ts
+import { ErrorCodes, DiscordPlayerError } from 'discord-player';
+
+try {
+  // Some operation
+} catch (error) {
+  if (error instanceof DiscordPlayerError) {
+    switch (error.code) {
+      case ErrorCodes.ERR_NO_VOICE_CONNECTION:
+        // Handle no connection
+        break;
+      case ErrorCodes.ERR_NO_RESULT:
+        // Handle no results
+        break;
+      case ErrorCodes.ERR_OUT_OF_SPACE:
+        // Handle full queue
+        break;
+      default:
+        console.error('Unknown error:', error.code);
+    }
+  }
+}
+```
+
+### Available Error Codes
+
+<CodeGroup>
+```typescript Connection Errors
+ErrorCodes.ERR_NO_VOICE_CONNECTION
+ErrorCodes.ERR_VOICE_CONNECTION_DESTROYED
+ErrorCodes.ERR_NO_VOICE_CHANNEL
+ErrorCodes.ERR_INVALID_VOICE_CHANNEL
+```
+
+```typescript Resource Errors
+ErrorCodes.ERR_NO_RESULT
+ErrorCodes.ERR_NO_AUDIO_RESOURCE
+ErrorCodes.ERR_NO_GUILD_QUEUE
+ErrorCodes.ERR_NO_GUILD
+ErrorCodes.ERR_OUT_OF_SPACE
+```
+
+```typescript Validation Errors
+ErrorCodes.ERR_INVALID_ARG_TYPE
+ErrorCodes.ERR_OUT_OF_RANGE
+ErrorCodes.ERR_INFO_REQUIRED
+```
+
+```typescript System Errors
+ErrorCodes.ERR_FFMPEG_LOCATOR
+ErrorCodes.ERR_NOT_IMPLEMENTED
+ErrorCodes.ERR_NOT_EXISTING
+ErrorCodes.ERR_NOT_EXISTING_MODULE
+```
+</CodeGroup>
+
+## Error Events
+
+### Queue-Level Errors
+
+```typescript GuildQueue.ts
+import { GuildQueueEvent } from 'discord-player';
+
+// General queue errors
+player.events.on(GuildQueueEvent.Error, (queue, error) => {
+  console.error(`Queue error in ${queue.guild.name}:`, error);
+  
+  const channel = queue.metadata?.channel;
+  if (channel?.isSendable()) {
+    channel.send(`An error occurred: ${error.message}`);
+  }
+});
+
+// Player errors (errors during playback)
+player.events.on(GuildQueueEvent.PlayerError, (queue, error, track) => {
+  console.error(`Error playing ${track.title}:`, error);
+  
+  const channel = queue.metadata?.channel;
+  if (channel?.isSendable()) {
+    channel.send(`Failed to play **${track.title}**: ${error.message}`);
+  }
+});
+```
+
+### Player-Level Errors
+
+```typescript Player.ts
+// Global error handler
+player.on('error', (error) => {
+  console.error('Global player error:', error);
+});
+```
+
+<Warning>
+Always listen to the `error` event on the player instance. Unhandled errors will crash your bot.
+</Warning>
+
+## Error Helper Functions
+
+### Checking Error Type
+
+```typescript index.ts
+import { isDiscordPlayerError } from 'discord-player';
+
+try {
+  await player.play(channel, query);
+} catch (error) {
+  if (isDiscordPlayerError(error)) {
+    // It's a Discord Player error
+    console.error(`Error ${error.code}:`, error.message);
+    console.error(`Timestamp: ${error.timestamp}`);
+  } else {
+    // External error
+    console.error('Non-player error:', error);
+  }
+}
+```
+
+### Handling Discord Player Errors
+
+```typescript index.ts
+import { handleDiscordPlayerError } from 'discord-player';
+
+try {
+  await queue.play(track);
+} catch (error) {
+  handleDiscordPlayerError(
+    error,
+    (dpError) => {
+      console.error(`Discord Player Error [${dpError.code}]:`, dpError.message);
+    },
+    [] // Additional args
+  );
+}
+```
+
+## Common Error Scenarios
+
+### Handling Search Failures
+
+```typescript
+try {
+  const result = await player.search(query, {
+    requestedBy: interaction.user,
+  });
+  
+  if (result.isEmpty()) {
+    await interaction.reply('No results found!');
+    return;
+  }
+  
+  // Use result
+} catch (error) {
+  if (error instanceof NoResultError) {
+    await interaction.reply('Search failed: ' + error.message);
+  } else {
+    await interaction.reply('An unexpected error occurred');
+    console.error(error);
+  }
+}
+```
+
+### Handling Connection Failures
+
+```typescript
+try {
+  const queue = player.nodes.create(interaction.guild, {
+    metadata: { channel: interaction.channel },
+  });
+  
+  await queue.connect(interaction.member.voice.channel);
+} catch (error) {
+  if (error instanceof NoVoiceChannelError) {
+    await interaction.reply('Join a voice channel first!');
+  } else if (error instanceof InvalidArgTypeError) {
+    await interaction.reply('Invalid voice channel!');
+  } else {
+    await interaction.reply('Failed to connect to voice channel');
+    console.error(error);
+  }
+}
+```
+
+### Handling Playback Errors
+
+```typescript
+player.events.on(GuildQueueEvent.PlayerError, async (queue, error, track) => {
+  console.error(`Error playing ${track.title}:`, error);
+  
+  // Skip to next track on error
+  if (!queue.isEmpty()) {
+    queue.node.skip();
+  } else {
+    queue.delete();
+  }
+  
+  // Notify users
+  const channel = queue.metadata?.channel;
+  if (channel?.isSendable()) {
+    await channel.send(
+      `Failed to play **${track.title}**. ${queue.isEmpty() ? 'Queue is now empty.' : 'Skipping to next track...'}`
+    );
+  }
+});
+```
+
+### Handling Queue Full Errors
+
+```typescript
+try {
+  if (queue.isFull()) {
+    await interaction.reply(
+      `Queue is full! Maximum ${queue.maxSize} tracks allowed.`
+    );
+    return;
+  }
+  
+  queue.addTrack(track);
+} catch (error) {
+  if (error instanceof OutOfSpaceError) {
+    await interaction.reply('Failed to add track: ' + error.message);
+  }
+}
+```
+
+## Error Logging
+
+### Structured Error Logging
+
+```typescript
+function logError(error: Error, context: Record<string, any>) {
+  if (isDiscordPlayerError(error)) {
+    console.error({
+      type: 'DiscordPlayerError',
+      code: error.code,
+      message: error.message,
+      timestamp: error.timestamp,
+      context,
+    });
+  } else {
+    console.error({
+      type: 'Error',
+      message: error.message,
+      stack: error.stack,
+      context,
+    });
+  }
+}
+
+player.events.on(GuildQueueEvent.PlayerError, (queue, error, track) => {
+  logError(error, {
+    guild: queue.guild.id,
+    track: track.url,
+    queueSize: queue.size,
+  });
+});
+```
+
+### Error JSON Serialization
+
+```typescript index.ts
+player.events.on(GuildQueueEvent.Error, (queue, error) => {
+  if (isDiscordPlayerError(error)) {
+    // Serialize to JSON
+    const errorData = error.toJSON();
+    console.log(JSON.stringify(errorData, null, 2));
+    // {
+    //   "name": "NoVoiceConnectionError",
+    //   "code": "ERR_NO_VOICE_CONNECTION",
+    //   "message": "No voice connection available...",
+    //   "timestamp": 1234567890
+    // }
+  }
+});
+```
+
+## Retry Logic
+
+### Retry Failed Tracks
+
+```typescript
+const MAX_RETRIES = 3;
+const retryCount = new Map<string, number>();
+
+player.events.on(GuildQueueEvent.PlayerError, async (queue, error, track) => {
+  const count = retryCount.get(track.url) || 0;
+  
+  if (count < MAX_RETRIES) {
+    console.log(`Retrying ${track.title} (attempt ${count + 1}/${MAX_RETRIES})`);
+    retryCount.set(track.url, count + 1);
+    
+    // Re-add track to front of queue
+    queue.node.insert(track, 0);
+    queue.node.skip();
+  } else {
+    console.error(`Failed to play ${track.title} after ${MAX_RETRIES} attempts`);
+    retryCount.delete(track.url);
+    
+    const channel = queue.metadata?.channel;
+    if (channel?.isSendable()) {
+      await channel.send(`Unable to play **${track.title}** after multiple attempts.`);
+    }
+  }
+});
+```
+
+## Graceful Degradation
+
+### Fallback to Alternative Sources
+
+```typescript
+player.events.on(GuildQueueEvent.PlayerError, async (queue, error, track) => {
+  console.error(`Failed to play from primary source:`, error);
+  
+  try {
+    // Try searching for alternative source
+    const fallback = await player.search(track.title, {
+      searchEngine: 'youtubeSearch',
+    });
+    
+    if (!fallback.isEmpty()) {
+      console.log('Found fallback source');
+      queue.node.insert(fallback.tracks[0], 0);
+      queue.node.skip();
+      return;
+    }
+  } catch (fallbackError) {
+    console.error('Fallback also failed:', fallbackError);
+  }
+  
+  // If fallback fails, skip to next track
+  if (!queue.isEmpty()) {
+    queue.node.skip();
+  }
+});
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Always Handle Errors" icon="shield">
+    Listen to both `error` and `playerError` events. Unhandled errors will crash your bot.
+  </Card>
+  
+  <Card title="Use Type Guards" icon="filter">
+    Use `isDiscordPlayerError()` and `instanceof` checks to properly type errors.
+  </Card>
+  
+  <Card title="Provide User Feedback" icon="comment">
+    Always inform users when operations fail with clear, actionable messages.
+  </Card>
+  
+  <Card title="Log Contextually" icon="list">
+    Include relevant context (guild ID, track, queue state) in error logs.
+  </Card>
+  
+  <Card title="Implement Retries" icon="rotate">
+    Add retry logic for transient failures, but limit retry attempts.
+  </Card>
+  
+  <Card title="Validate Early" icon="check">
+    Check preconditions (queue exists, channel is valid) before operations.
+  </Card>
+</CardGroup>
+
+## Debug Mode
+
+Enable debug mode to see detailed information:
+
+```typescript
+player.events.on(GuildQueueEvent.Debug, (queue, message) => {
+  console.log(`[${queue.guild.name}] ${message}`);
+});
+
+player.on('debug', (message) => {
+  console.log(`[Player] ${message}`);
+});
+```
+
+Debug messages include:
+- Search operations
+- Extractor execution
+- Stream creation
+- Cache operations
+- Voice state changes
+- Queue operations

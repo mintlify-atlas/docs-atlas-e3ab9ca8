@@ -1,0 +1,420 @@
+---
+title: Audio Filters
+description: Apply 40+ preset audio filters to transform your audio playback
+icon: waveform
+---
+
+## Overview
+
+Discord Player provides over 40 preset audio filters powered by FFmpeg that can dramatically transform your audio playback. From bass boosts to nightcore, 8D audio to karaoke mode, these filters offer professional-grade audio manipulation.
+
+## Available Filters
+
+### Bass Filters
+
+<AccordionGroup>
+  <Accordion title="Bass Boost Levels">
+    - **bassboost_low** - Low bass boost (15 dB gain at 110 Hz)
+    - **bassboost** - Standard bass boost (20 dB gain at 110 Hz)
+    - **bassboost_high** - High bass boost (30 dB gain at 110 Hz)
+    - **subboost** - Enhance sub-bass frequencies
+  </Accordion>
+</AccordionGroup>
+
+### Frequency Filters
+
+<CardGroup cols={2}>
+  <Card title="Treble" icon="arrow-up">
+    Boost high frequencies (5 dB treble gain)
+  </Card>
+  <Card title="Normalizer" icon="sliders">
+    Audio compressor for consistent levels
+  </Card>
+  <Card title="Normalizer2" icon="gauge">
+    Dynamic audio normalizer with 101 dB gain
+  </Card>
+</CardGroup>
+
+### Spatial Effects
+
+<CardGroup cols={2}>
+  <Card title="8D Audio" icon="360-degrees">
+    Simulate 8D audio with pulsator effect (0.09 Hz)
+  </Card>
+  <Card title="Surrounding" icon="speakers">
+    Create surround sound effect
+  </Card>
+  <Card title="Haas" icon="wave-square">
+    Haas effect for spatial audio
+  </Card>
+  <Card title="Pulsator" icon="heart-pulse">
+    Audio pulsator at 1 Hz
+  </Card>
+</CardGroup>
+
+### Modulation Effects
+
+| Filter | Description | FFmpeg Configuration |
+|--------|-------------|----------------------|
+| **phaser** | Phase shifting effect | `aphaser=in_gain=0.4` |
+| **tremolo** | Amplitude modulation | `tremolo` |
+| **vibrato** | Pitch modulation | `vibrato=f=6.5` |
+| **flanger** | Flanging effect | `flanger` |
+
+### Stereo Effects
+
+<AccordionGroup>
+  <Accordion title="Stereo Modes">
+    - **mono** - Convert to mono audio
+    - **mstlr** - Mid/Side to Left/Right conversion
+    - **mstrr** - Mid/Side to Right/Right conversion
+  </Accordion>
+</AccordionGroup>
+
+### Chorus Effects
+
+<CardGroup cols={3}>
+  <Card title="Chorus" icon="music">
+    Standard chorus effect
+    ```
+    0.7:0.9:55:0.4:0.25:2
+    ```
+  </Card>
+  <Card title="Chorus 2D" icon="layer-group">
+    Two-dimensional chorus
+    ```
+    50|60 Hz modulation
+    ```
+  </Card>
+  <Card title="Chorus 3D" icon="cube">
+    Three-dimensional chorus
+    ```
+    50|60|40 Hz modulation
+    ```
+  </Card>
+</CardGroup>
+
+### Time-Based Effects
+
+<Tabs>
+  <Tab title="Speed Changes">
+    **nightcore** - Speed up audio (1.25x rate, higher pitch)
+    ```typescript
+    aresample=48000,asetrate=48000*1.25
+    ```
+
+    **vaporwave** - Slow down audio (0.8x rate, lower pitch)
+    ```typescript
+    aresample=48000,asetrate=48000*0.8
+    ```
+
+    **lofi** - Lo-fi effect (0.9x rate with stereo enhancement)
+    ```typescript
+    aresample=48000,asetrate=48000*0.9,extrastereo=m=2.5:c=disabled
+    ```
+  </Tab>
+  <Tab title="Other">
+    **reverse** - Reverse audio playback
+
+    **fadein** - 10-second fade-in effect
+  </Tab>
+</Tabs>
+
+### Dynamic Range
+
+<CardGroup cols={2}>
+  <Card title="Compressor" icon="compress">
+    Reduce dynamic range with multi-point compression curve
+  </Card>
+  <Card title="Expander" icon="expand">
+    Expand dynamic range with advanced attack settings
+  </Card>
+  <Card title="Soft Limiter" icon="gauge-max">
+    Gentle limiting to prevent clipping
+  </Card>
+  <Card title="Mcompand" icon="chart-line">
+    Multi-band compander
+  </Card>
+</CardGroup>
+
+### Special Effects
+
+<AccordionGroup>
+  <Accordion title="Karaoke" icon="microphone">
+    Remove vocals using stereo tools
+    ```typescript
+    stereotools=mlev=0.03
+    ```
+  </Accordion>
+  
+  <Accordion title="Gate" icon="door-open">
+    Audio gate for noise reduction
+  </Accordion>
+  
+  <Accordion title="Dim" icon="moon">
+    Reduce brightness of audio spectrum
+  </Accordion>
+  
+  <Accordion title="Earrape" icon="volume-high">
+    Extreme volume effect (use with caution)
+  </Accordion>
+  
+  <Accordion title="Silence Remove" icon="scissors">
+    Remove silence from beginning
+    ```typescript
+    silenceremove=1:0:-50dB
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Usage
+
+### Apply Single Filter
+
+```typescript
+await queue.filters.ffmpeg.setFilters(['bassboost']);
+```
+
+### Apply Multiple Filters
+
+```typescript
+await queue.filters.ffmpeg.setFilters([
+  'nightcore',
+  'bassboost',
+  '8D'
+]);
+```
+
+### Toggle Filters
+
+```typescript
+// Toggle filters on/off
+await queue.filters.ffmpeg.toggle(['vaporwave']);
+```
+
+### Using Filter Object
+
+```typescript
+await queue.filters.ffmpeg.setFilters({
+  bassboost: true,
+  nightcore: true,
+  normalizer: false
+});
+```
+
+### Enable All Filters
+
+```typescript
+// Enable all available filters
+await queue.filters.ffmpeg.setFilters(true);
+
+// Disable all filters
+await queue.filters.ffmpeg.setFilters(false);
+```
+
+## Filter Management
+
+### Check Filter Status
+
+```typescript
+// Check if filter is enabled
+const isEnabled = queue.filters.ffmpeg.isEnabled('bassboost');
+
+// Check if filter is disabled
+const isDisabled = queue.filters.ffmpeg.isDisabled('nightcore');
+
+// Validate filter name
+const isValid = queue.filters.ffmpeg.isValidFilter('8D');
+```
+
+### Get Active Filters
+
+```typescript
+// Get list of enabled filters
+const enabled = queue.filters.ffmpeg.getFiltersEnabled();
+console.log('Enabled:', enabled); // ['bassboost', 'nightcore']
+
+// Get list of disabled filters
+const disabled = queue.filters.ffmpeg.getFiltersDisabled();
+```
+
+### Export Filter Configuration
+
+```typescript
+// Convert to array
+const filterArray = queue.filters.ffmpeg.toArray();
+
+// Convert to JSON object
+const filterObj = queue.filters.ffmpeg.toJSON();
+
+// Get FFmpeg string
+const ffmpegArgs = queue.filters.ffmpeg.toString();
+```
+
+## Custom Filters
+
+### Define Single Filter
+
+```typescript
+import { AudioFilters } from 'discord-player';
+
+AudioFilters.define('myfilter', 'aecho=0.8:0.9:1000:0.3');
+
+// Use your custom filter
+await queue.filters.ffmpeg.setFilters(['myfilter']);
+```
+
+### Define Multiple Filters
+
+```typescript
+AudioFilters.defineBulk([
+  {
+    name: 'deepbass',
+    value: 'bass=g=25:f=90:w=0.4'
+  },
+  {
+    name: 'crystalclear',
+    value: 'acompressor=threshold=0.089:ratio=9:attack=200:release=1000'
+  },
+  {
+    name: 'spacial',
+    value: 'aecho=0.8:0.88:60:0.4,chorus=0.5:0.9:50:0.4:0.25:2'
+  }
+]);
+
+await queue.filters.ffmpeg.setFilters(['deepbass', 'crystalclear']);
+```
+
+## Advanced Usage
+
+### Set Default Filters
+
+```typescript
+// Set filters without triggering replay
+queue.filters.ffmpeg.setDefaults(['bassboost', 'normalizer']);
+```
+
+### Access Raw Filter Values
+
+```typescript
+import { AudioFilters } from 'discord-player';
+
+// Get filter FFmpeg value
+const filterValue = AudioFilters.get('nightcore');
+console.log(filterValue); // 'aresample=48000,asetrate=48000*1.25'
+
+// Check if filter exists
+const exists = AudioFilters.has('bassboost');
+
+// Get all filter names
+const names = AudioFilters.names;
+console.log(names); // ['bassboost_low', 'bassboost', ...]
+
+// Get filter count
+console.log(AudioFilters.length); // 40+
+```
+
+### Set Input Arguments
+
+```typescript
+// Add custom FFmpeg input arguments
+queue.filters.ffmpeg.setInputArgs([
+  '-af', 'volume=1.5',
+  '-ar', '44100'
+]);
+
+// Get current input args
+const args = queue.filters.ffmpeg.inputArgs;
+
+// Get encoder args
+const encoderArgs = queue.filters.ffmpeg.encoderArgs;
+
+// Get final combined args
+const finalArgs = queue.filters.ffmpeg.args;
+```
+
+## Complete Filter List
+
+<Note>
+Here's a complete reference of all 40+ available filters:
+</Note>
+
+```typescript
+const allFilters = [
+  'bassboost_low',
+  'bassboost',
+  'bassboost_high',
+  '8D',
+  'vaporwave',
+  'nightcore',
+  'phaser',
+  'tremolo',
+  'vibrato',
+  'reverse',
+  'treble',
+  'normalizer',
+  'normalizer2',
+  'surrounding',
+  'pulsator',
+  'subboost',
+  'karaoke',
+  'flanger',
+  'gate',
+  'haas',
+  'mcompand',
+  'mono',
+  'mstlr',
+  'mstrr',
+  'compressor',
+  'expander',
+  'softlimiter',
+  'chorus',
+  'chorus2d',
+  'chorus3d',
+  'fadein',
+  'dim',
+  'earrape',
+  'lofi',
+  'silenceremove'
+];
+```
+
+## Events
+
+```typescript
+queue.on('audioFiltersUpdate', (queue, oldFilters, newFilters) => {
+  console.log('Filters changed from:', oldFilters);
+  console.log('Filters changed to:', newFilters);
+});
+```
+
+## Best Practices
+
+<Warning>
+**Performance Considerations**
+- Filters trigger audio stream replay and may cause brief playback interruption
+- Multiple filters can increase CPU usage
+- Some filters (like `nightcore` and `vaporwave`) affect playback duration
+</Warning>
+
+<Tip>
+**Tips**
+- Test filters individually before combining
+- Use `normalizer` with heavy filters to maintain consistent volume
+- Some filters work better with specific audio types (e.g., karaoke with vocals)
+- Custom filters give you unlimited possibilities with FFmpeg
+</Tip>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Equalizer" icon="sliders" href="/audio/equalizer">
+    15-band equalizer configuration
+  </Card>
+  <Card title="Volume Control" icon="volume" href="/audio/volume-control">
+    Manage playback volume
+  </Card>
+  <Card title="Stream Config" icon="gear" href="/audio/stream-config">
+    Configure audio stream processing
+  </Card>
+</CardGroup>

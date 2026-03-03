@@ -1,0 +1,833 @@
+---
+title: Custom Extractors
+description: Create your own extractors for custom music sources
+icon: code
+---
+
+## Creating a Custom Extractor
+
+Custom extractors allow you to integrate any music source with Discord Player. You can create extractors for:
+
+- Private streaming services
+- Custom APIs
+- Self-hosted media servers
+- Niche music platforms
+- Audio processing pipelines
+
+## BaseExtractor API
+
+All extractors must extend the `BaseExtractor` class:
+
+```typescript
+import { BaseExtractor } from 'discord-player';
+
+export class MyCustomExtractor extends BaseExtractor {
+  public static identifier = 'com.mycompany.mycustomextractor';
+  
+  // Your implementation here
+}
+```
+
+### Required Properties
+
+#### identifier
+
+A unique identifier for your extractor:
+
+```typescript
+public static identifier = 'com.mycompany.mycustomextractor';
+```
+
+<Warning>
+Use reverse domain notation (e.g., `com.company.extractor`) to avoid conflicts with other extractors.
+</Warning>
+
+### Optional Properties
+
+#### priority
+
+Execution priority (default: 1). Higher values execute first:
+
+```typescript
+public priority = 10; // Will be executed before priority 1
+```
+
+#### protocols
+
+Custom search protocols for your extractor:
+
+```typescript
+public protocols = ['mysearch', 'mycustomprotocol'];
+
+// Users can then search with:
+// await player.search('mysearch:query');
+```
+
+## Core Methods
+
+### constructor()
+
+Initialize your extractor with options:
+
+```typescript
+interface MyExtractorOptions {
+  apiKey: string;
+  baseUrl?: string;
+}
+
+export class MyCustomExtractor extends BaseExtractor<MyExtractorOptions> {
+  constructor(
+    public context: ExtractorExecutionContext,
+    public options: MyExtractorOptions
+  ) {
+    super(context, options);
+  }
+}
+```
+
+### activate()
+
+Called when the extractor is registered. Set up resources here:
+
+```typescript
+public async activate(): Promise<void> {
+  // Set custom protocols
+  this.protocols = ['mysearch', 'myservice'];
+  
+  // Initialize API clients
+  this.apiClient = new MyAPIClient(this.options.apiKey);
+  
+  // Validate credentials
+  await this.apiClient.authenticate();
+  
+  this.debug('My custom extractor activated!');
+}
+```
+
+### deactivate()
+
+Called when the extractor is unregistered. Clean up resources:
+
+```typescript
+public async deactivate(): Promise<void> {
+  // Clean up resources
+  this.protocols = [];
+  this.apiClient?.disconnect();
+  
+  this.debug('My custom extractor deactivated!');
+}
+```
+
+### validate()
+
+Determine if your extractor can handle a query:
+
+```typescript
+public async validate(
+  query: string,
+  type?: SearchQueryType | null
+): Promise<boolean> {
+  // Check URL pattern
+  if (query.includes('myservice.com')) return true;
+  
+  // Check query type
+  if (type === 'myCustomType') return true;
+  
+  // Check protocol
+  if (query.startsWith('mysearch:')) return true;
+  
+  return false;
+}
+```
+
+### handle()
+
+Extract track metadata from a query:
+
+```typescript
+import {
+  BaseExtractor,
+  ExtractorInfo,
+  ExtractorSearchContext,
+  Track,
+  Playlist,
+  Util
+} from 'discord-player';
+
+public async handle(
+  query: string,
+  context: ExtractorSearchContext
+): Promise<ExtractorInfo> {
+  // Fetch data from your API
+  const data = await this.apiClient.search(query);
+  
+  if (!data) {
+    return this.createResponse(null, []);
+  }
+  
+  // Create Track objects
+  const tracks = data.results.map(item => {
+    const track = new Track(this.context.player, {
+      title: item.title,
+      author: item.artist,
+      url: item.url,
+      duration: Util.buildTimeCode(Util.parseMS(item.duration)),
+      thumbnail: item.thumbnail,
+      description: item.description || `${item.title} by ${item.artist}`,
+      views: item.playCount || 0,
+      requestedBy: context.requestedBy,
+      source: 'myservice',
+      queryType: 'myCustomType',
+      metadata: item,
+      requestMetadata: async () => item
+    });
+    
+    track.extractor = this;
+    return track;
+  });
+  
+  return this.createResponse(null, tracks);
+}
+```
+
+### stream()
+
+Return a streamable source for a track:
+
+```typescript
+import { ExtractorStreamable } from 'discord-player';
+import { Readable } from 'stream';
+
+public async stream(info: Track): Promise<ExtractorStreamable> {
+  // Option 1: Return a URL string
+  const streamUrl = await this.apiClient.getStreamUrl(info.url);
+  return streamUrl;
+  
+  // Option 2: Return a Readable stream
+  const stream = await this.apiClient.getStream(info.url);
+  return stream;
+  
+  // Option 3: Return stream with format hint (for raw formats)
+  return {
+    stream: rawOpusStream,
+    $fmt: 'opus' // Format hint for Discord Player
+  };
+}
+```
+
+<Note>
+Discord Player accepts three return types:
+- `string` - Direct URL to audio
+- `Readable` - Node.js stream
+- `{ stream: Readable, $fmt: string }` - Stream with format hint for raw audio
+</Note>
+
+## Optional Methods
+
+### getRelatedTracks()
+
+Provide related tracks for autoplay:
+
+```typescript
+import { GuildQueueHistory } from 'discord-player';
+
+public async getRelatedTracks(
+  track: Track,
+  history: GuildQueueHistory
+): Promise<ExtractorInfo> {
+  // Fetch related tracks from your API
+  const related = await this.apiClient.getRelated(track.url);
+  
+  // Filter out tracks already in history
+  const unique = related.filter(
+    item => !history.tracks.some(h => h.url === item.url)
+  );
+  
+  // Convert to Track objects
+  const tracks = unique.map(item => this.createTrack(item));
+  
+  return this.createResponse(null, tracks);
+}
+```
+
+### bridge()
+
+Provide streaming for tracks from other extractors:
+
+```typescript
+public async bridge(
+  track: Track,
+  sourceExtractor: BaseExtractor | null
+): Promise<ExtractorStreamable | null> {
+  // Don't bridge our own tracks
+  if (sourceExtractor?.identifier === this.identifier) {
+    return this.stream(track);
+  }
+  
+  // Build search query from track metadata
+  const query = sourceExtractor?.createBridgeQuery(track) ??
+    `${track.author} - ${track.title}`;
+  
+  // Search on our platform
+  const result = await this.handle(query, {
+    requestedBy: track.requestedBy,
+    type: 'myCustomSearch'
+  });
+  
+  if (!result.tracks.length) return null;
+  
+  // Stream the first result
+  const stream = await this.stream(result.tracks[0]);
+  
+  // Update track metadata
+  track.bridgedTrack = result.tracks[0];
+  track.bridgedExtractor = this;
+  
+  return stream;
+}
+```
+
+### createBridgeQuery()
+
+Customize how bridge queries are generated:
+
+```typescript
+public createBridgeQuery = (track: Track) => {
+  // Default implementation
+  return `${track.title} by ${track.author} official audio`;
+  
+  // Custom implementation
+  // return `${track.author} ${track.title} ${track.album || ''}`;
+};
+```
+
+### handlePostStream()
+
+Middleware to modify streams before playback:
+
+```typescript
+import { Readable } from 'stream';
+import { NextFunction } from 'discord-player';
+
+public handlePostStream(stream: Readable, next: NextFunction) {
+  // Add transformations to the stream
+  const transformed = stream.pipe(myTransformStream());
+  
+  // Pass to next middleware
+  return next(null, transformed);
+  
+  // Or report an error
+  // return next(new Error('Stream failed'));
+}
+```
+
+### reconfigure()
+
+Update extractor options at runtime:
+
+```typescript
+// Called internally, usually not overridden
+public async reconfigure(options: MyExtractorOptions) {
+  this.options = options;
+  await this.deactivate();
+  await this.activate();
+}
+
+// Usage
+await myExtractor.reconfigure({
+  apiKey: 'new-api-key',
+  baseUrl: 'https://new-api.example.com'
+});
+```
+
+## Helper Methods
+
+### createResponse()
+
+Helper to create `ExtractorInfo` responses:
+
+```typescript
+// Return tracks without playlist
+return this.createResponse(null, tracks);
+
+// Return tracks with playlist
+const playlist = new Playlist(this.context.player, { /* ... */ });
+return this.createResponse(playlist, tracks);
+
+// Return empty response
+return this.createResponse();
+```
+
+### debug()
+
+Log debug messages (only shown if player has debugger enabled):
+
+```typescript
+this.debug('Fetching track metadata...');
+this.debug(`Found ${tracks.length} tracks`);
+```
+
+### emit()
+
+Dispatch events to the player:
+
+```typescript
+this.emit('debug', 'Custom debug message');
+this.emit('playerError', this.context.player, error);
+```
+
+## Complete Example
+
+Here's a complete custom extractor implementation:
+
+```typescript
+import {
+  BaseExtractor,
+  ExtractorInfo,
+  ExtractorSearchContext,
+  ExtractorStreamable,
+  Track,
+  Playlist,
+  Util,
+  QueryType,
+  SearchQueryType,
+  GuildQueueHistory
+} from 'discord-player';
+import { Readable } from 'stream';
+
+interface MyServiceOptions {
+  apiKey: string;
+  baseUrl?: string;
+}
+
+export class MyServiceExtractor extends BaseExtractor<MyServiceOptions> {
+  public static identifier = 'com.example.myserviceextractor';
+  public priority = 5;
+  private apiClient: MyAPIClient | null = null;
+  
+  public async activate(): Promise<void> {
+    this.protocols = ['mysearch'];
+    this.apiClient = new MyAPIClient({
+      apiKey: this.options.apiKey,
+      baseUrl: this.options.baseUrl || 'https://api.myservice.com'
+    });
+    
+    await this.apiClient.authenticate();
+    this.debug('MyService extractor activated!');
+  }
+  
+  public async deactivate(): Promise<void> {
+    this.protocols = [];
+    this.apiClient?.disconnect();
+    this.apiClient = null;
+    this.debug('MyService extractor deactivated!');
+  }
+  
+  public async validate(
+    query: string,
+    type?: SearchQueryType | null
+  ): Promise<boolean> {
+    // Support our domain
+    if (query.includes('myservice.com')) return true;
+    
+    // Support custom protocol
+    if (query.startsWith('mysearch:')) return true;
+    
+    // Support custom query types
+    const supportedTypes = [
+      'myServiceTrack',
+      'myServicePlaylist',
+      'myServiceSearch',
+      QueryType.AUTO,
+      QueryType.AUTO_SEARCH
+    ] as SearchQueryType[];
+    
+    return supportedTypes.includes(type!);
+  }
+  
+  public async handle(
+    query: string,
+    context: ExtractorSearchContext
+  ): Promise<ExtractorInfo> {
+    // Handle custom protocol
+    if (context.protocol === 'mysearch') {
+      query = query.replace('mysearch:', '');
+    }
+    
+    // Determine query type
+    const isTrack = query.includes('/track/');
+    const isPlaylist = query.includes('/playlist/');
+    
+    if (isTrack) {
+      return this.handleTrack(query, context);
+    } else if (isPlaylist) {
+      return this.handlePlaylist(query, context);
+    } else {
+      return this.handleSearch(query, context);
+    }
+  }
+  
+  private async handleTrack(
+    query: string,
+    context: ExtractorSearchContext
+  ): Promise<ExtractorInfo> {
+    const data = await this.apiClient!.getTrack(query);
+    
+    if (!data) return this.createResponse();
+    
+    const track = new Track(this.context.player, {
+      title: data.title,
+      author: data.artist,
+      url: data.url,
+      duration: Util.buildTimeCode(Util.parseMS(data.duration)),
+      thumbnail: data.thumbnail,
+      description: `${data.title} by ${data.artist}`,
+      views: data.playCount,
+      requestedBy: context.requestedBy,
+      source: 'myservice',
+      queryType: 'myServiceTrack',
+      metadata: data,
+      requestMetadata: async () => data
+    });
+    
+    track.extractor = this;
+    
+    return this.createResponse(null, [track]);
+  }
+  
+  private async handlePlaylist(
+    query: string,
+    context: ExtractorSearchContext
+  ): Promise<ExtractorInfo> {
+    const data = await this.apiClient!.getPlaylist(query);
+    
+    if (!data) return this.createResponse();
+    
+    const playlist = new Playlist(this.context.player, {
+      title: data.title,
+      description: data.description,
+      thumbnail: data.thumbnail,
+      type: 'playlist',
+      source: 'myservice',
+      author: {
+        name: data.creator,
+        url: data.creatorUrl
+      },
+      tracks: [],
+      id: data.id,
+      url: data.url,
+      rawPlaylist: data
+    });
+    
+    playlist.tracks = data.tracks.map(item => {
+      const track = new Track(this.context.player, {
+        title: item.title,
+        author: item.artist,
+        url: item.url,
+        duration: Util.buildTimeCode(Util.parseMS(item.duration)),
+        thumbnail: item.thumbnail,
+        description: `${item.title} by ${item.artist}`,
+        views: item.playCount,
+        requestedBy: context.requestedBy,
+        source: 'myservice',
+        queryType: 'myServiceTrack',
+        metadata: item,
+        requestMetadata: async () => item,
+        playlist
+      });
+      
+      track.extractor = this;
+      return track;
+    });
+    
+    return this.createResponse(playlist, playlist.tracks);
+  }
+  
+  private async handleSearch(
+    query: string,
+    context: ExtractorSearchContext
+  ): Promise<ExtractorInfo> {
+    const data = await this.apiClient!.search(query);
+    
+    if (!data || !data.results.length) return this.createResponse();
+    
+    const tracks = data.results.map(item => {
+      const track = new Track(this.context.player, {
+        title: item.title,
+        author: item.artist,
+        url: item.url,
+        duration: Util.buildTimeCode(Util.parseMS(item.duration)),
+        thumbnail: item.thumbnail,
+        description: `${item.title} by ${item.artist}`,
+        views: item.playCount,
+        requestedBy: context.requestedBy,
+        source: 'myservice',
+        queryType: 'myServiceTrack',
+        metadata: item,
+        requestMetadata: async () => item
+      });
+      
+      track.extractor = this;
+      return track;
+    });
+    
+    return this.createResponse(null, tracks);
+  }
+  
+  public async stream(info: Track): Promise<ExtractorStreamable> {
+    const streamUrl = await this.apiClient!.getStreamUrl(info.url);
+    
+    if (!streamUrl) {
+      throw new Error('Could not extract stream from this track');
+    }
+    
+    return streamUrl;
+  }
+  
+  public async getRelatedTracks(
+    track: Track,
+    history: GuildQueueHistory
+  ): Promise<ExtractorInfo> {
+    const related = await this.apiClient!.getRelated(track.url);
+    
+    const unique = related.filter(
+      item => !history.tracks.some(h => h.url === item.url)
+    );
+    
+    const tracks = unique.map(item => {
+      const track = new Track(this.context.player, {
+        title: item.title,
+        author: item.artist,
+        url: item.url,
+        duration: Util.buildTimeCode(Util.parseMS(item.duration)),
+        thumbnail: item.thumbnail,
+        description: `${item.title} by ${item.artist}`,
+        views: item.playCount,
+        requestedBy: track.requestedBy,
+        source: 'myservice',
+        queryType: 'myServiceTrack',
+        metadata: item,
+        requestMetadata: async () => item
+      });
+      
+      track.extractor = this;
+      return track;
+    });
+    
+    return this.createResponse(null, tracks);
+  }
+  
+  public async bridge(
+    track: Track,
+    sourceExtractor: BaseExtractor | null
+  ): Promise<ExtractorStreamable | null> {
+    if (sourceExtractor?.identifier === this.identifier) {
+      return this.stream(track);
+    }
+    
+    const query = sourceExtractor?.createBridgeQuery(track) ??
+      `${track.author} - ${track.title}`;
+    
+    const result = await this.handle(query, {
+      requestedBy: track.requestedBy,
+      type: 'myServiceSearch'
+    });
+    
+    if (!result.tracks.length) return null;
+    
+    const stream = await this.stream(result.tracks[0]);
+    
+    track.bridgedTrack = result.tracks[0];
+    track.bridgedExtractor = this;
+    
+    return stream;
+  }
+}
+
+// Mock API client for example purposes
+class MyAPIClient {
+  constructor(private config: { apiKey: string; baseUrl: string }) {}
+  
+  async authenticate() {
+    // Authenticate with API
+  }
+  
+  async getTrack(url: string) {
+    // Fetch track data
+    return null as any;
+  }
+  
+  async getPlaylist(url: string) {
+    // Fetch playlist data
+    return null as any;
+  }
+  
+  async search(query: string) {
+    // Search for tracks
+    return null as any;
+  }
+  
+  async getStreamUrl(url: string) {
+    // Get stream URL
+    return '';
+  }
+  
+  async getRelated(url: string) {
+    // Get related tracks
+    return [] as any[];
+  }
+  
+  disconnect() {
+    // Clean up connection
+  }
+}
+```
+
+## Registering Your Extractor
+
+```typescript
+import { MyServiceExtractor } from './extractors/MyServiceExtractor';
+
+const extractor = await player.extractors.register(
+  MyServiceExtractor,
+  {
+    apiKey: process.env.MY_SERVICE_API_KEY!,
+    baseUrl: 'https://api.myservice.com'
+  }
+);
+
+if (extractor) {
+  console.log('MyService extractor registered successfully!');
+} else {
+  console.error('Failed to register MyService extractor');
+}
+```
+
+## Testing Your Extractor
+
+```typescript
+// Test validation
+const canHandle = await extractor.validate(
+  'https://myservice.com/track/123',
+  'myServiceTrack'
+);
+console.log('Can handle:', canHandle);
+
+// Test search
+const searchResult = await player.search('mysearch:test query', {
+  requestedBy: interaction.user
+});
+console.log('Found tracks:', searchResult.tracks.length);
+
+// Test streaming
+if (searchResult.tracks[0]) {
+  const stream = await searchResult.tracks[0].extractor?.stream(
+    searchResult.tracks[0]
+  );
+  console.log('Stream:', stream);
+}
+```
+
+## Best Practices
+
+<Card title="Handle errors gracefully" icon="circle-check">
+Always catch API errors and return empty responses instead of throwing:
+
+```typescript
+public async handle(query: string, context: ExtractorSearchContext) {
+  try {
+    const data = await this.apiClient.search(query);
+    // ... process data
+  } catch (error) {
+    this.debug(`Error in handle: ${error}`);
+    return this.createResponse();
+  }
+}
+```
+</Card>
+
+<Card title="Use debug messages" icon="circle-check">
+Help users troubleshoot issues with debug logging:
+
+```typescript
+this.debug('Searching for: ' + query);
+this.debug(`Found ${tracks.length} tracks`);
+this.debug('Failed to fetch stream URL');
+```
+</Card>
+
+<Card title="Implement activate/deactivate" icon="circle-check">
+Properly initialize and clean up resources:
+
+```typescript
+public async activate() {
+  this.apiClient = new APIClient(this.options.apiKey);
+  await this.apiClient.connect();
+}
+
+public async deactivate() {
+  this.apiClient?.disconnect();
+  this.apiClient = null;
+}
+```
+</Card>
+
+<Card title="Set appropriate priority" icon="circle-check">
+Use higher priority for more reliable sources:
+
+```typescript
+// High priority for primary sources
+public priority = 10;
+
+// Default priority for standard sources
+public priority = 1;
+
+// Low priority for fallback sources
+public priority = 0;
+```
+</Card>
+
+<Card title="Validate credentials early" icon="circle-check">
+Check API credentials in `activate()` to fail fast:
+
+```typescript
+public async activate() {
+  try {
+    await this.apiClient.authenticate();
+  } catch (error) {
+    throw new Error('Invalid API credentials');
+  }
+}
+```
+</Card>
+
+## TypeScript Types
+
+```typescript
+import type {
+  BaseExtractor,
+  ExtractorInfo,
+  ExtractorSearchContext,
+  ExtractorStreamable,
+  ExtractorExecutionContext,
+  SearchQueryType,
+  GuildQueueHistory,
+  Track,
+  Playlist,
+  NextFunction
+} from 'discord-player';
+
+import type { Readable } from 'stream';
+import type { RequestOptions } from 'http';
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Extractors Overview" icon="plug" href="/extractors/overview">
+    Learn about extractor architecture and concepts
+  </Card>
+  <Card title="Default Extractors" icon="box" href="/extractors/default-extractors">
+    Explore built-in extractors for reference
+  </Card>
+</CardGroup>

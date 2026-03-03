@@ -1,0 +1,416 @@
+---
+title: useVolume
+description: React-style hook to manage player volume with getter and setter
+icon: volume
+---
+
+## Overview
+
+The `useVolume` hook provides a React-style state management interface for controlling the player's volume. It returns a tuple with a getter function and a setter function, similar to React's `useState`.
+
+## Usage
+
+```typescript
+import { useVolume } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('volume')
+    .setDescription('Set the volume')
+    .addIntegerOption(option =>
+      option.setName('level')
+        .setDescription('Volume level (0-200)')
+        .setRequired(true)
+        .setMinValue(0)
+        .setMaxValue(200)
+    ),
+  async execute({ interaction }) {
+    const [getVolume, setVolume] = useVolume();
+    const level = interaction.options.getInteger('level', true);
+    
+    setVolume(level);
+    
+    return interaction.reply(`🔊 Volume set to **${level}%**`);
+  }
+});
+```
+
+## Signature
+
+```typescript
+function useVolume(): VolumeDispatch
+function useVolume(node: NodeResolvable): VolumeDispatch
+
+type VolumeDispatch = readonly [
+  () => number,
+  (volume: number | SetterFN) => boolean | undefined
+]
+
+type SetterFN = (previous: number) => number
+```
+
+## Parameters
+
+<ParamField path="node" type="NodeResolvable" optional>
+  Guild queue node resolvable (guild ID, Guild object, or GuildQueue). If not provided, defaults to the guild from the command context.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="dispatch" type="VolumeDispatch">
+  A readonly tuple containing getter and setter functions.
+  
+  <Expandable title="tuple elements">
+    <ResponseField name="[0]" type="() => number">
+      Getter function that returns the current volume level (0-200).
+    </ResponseField>
+    
+    <ResponseField name="[1]" type="(volume: number | SetterFN) => boolean | undefined">
+      Setter function that updates the volume. Can accept either:
+      - A number representing the new volume level (0-200)
+      - A function that receives the previous volume and returns the new volume
+      
+      Returns `true` if volume was set successfully, `false` if it failed, or `undefined` if no queue exists.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## When to Use
+
+Use `useVolume` when you need to:
+
+- Get the current volume level
+- Set a specific volume level
+- Adjust volume relative to current level (increase/decrease)
+- Implement volume controls with validation
+- Create volume presets
+
+## Example: Basic Volume Control
+
+```typescript
+import { useVolume } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('volume')
+    .setDescription('Set or view the volume')
+    .addIntegerOption(option =>
+      option.setName('level')
+        .setDescription('Volume level (0-200)')
+        .setMinValue(0)
+        .setMaxValue(200)
+    ),
+  async execute({ interaction }) {
+    const [getVolume, setVolume] = useVolume();
+    const level = interaction.options.getInteger('level');
+    
+    // If no level provided, show current volume
+    if (level === null) {
+      const current = getVolume();
+      return interaction.reply(`🔊 Current volume: **${current}%**`);
+    }
+    
+    // Set new volume
+    const success = setVolume(level);
+    
+    if (!success) {
+      return interaction.reply('❌ Failed to set volume!');
+    }
+    
+    return interaction.reply(`🔊 Volume set to **${level}%**`);
+  }
+});
+```
+
+## Example: Relative Volume Adjustment
+
+```typescript
+import { useVolume } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('volumeup')
+    .setDescription('Increase volume by 10%'),
+  async execute({ interaction }) {
+    const [getVolume, setVolume] = useVolume();
+    
+    // Use function setter to access previous value
+    const success = setVolume(prev => Math.min(prev + 10, 200));
+    
+    if (!success) {
+      return interaction.reply('❌ Failed to adjust volume!');
+    }
+    
+    const newVolume = getVolume();
+    return interaction.reply(`🔊 Volume increased to **${newVolume}%**`);
+  }
+});
+```
+
+## Example: Volume Up/Down Commands
+
+```typescript
+import { useVolume } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('vol')
+    .setDescription('Adjust volume')
+    .addStringOption(option =>
+      option.setName('action')
+        .setDescription('Volume action')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Up (+10)', value: 'up' },
+          { name: 'Down (-10)', value: 'down' },
+          { name: 'Max (200)', value: 'max' },
+          { name: 'Default (100)', value: 'default' },
+          { name: 'Mute (0)', value: 'mute' }
+        )
+    ),
+  async execute({ interaction }) {
+    const [getVolume, setVolume] = useVolume();
+    const action = interaction.options.getString('action', true);
+    
+    let success: boolean | undefined;
+    
+    switch (action) {
+      case 'up':
+        success = setVolume(prev => Math.min(prev + 10, 200));
+        break;
+      case 'down':
+        success = setVolume(prev => Math.max(prev - 10, 0));
+        break;
+      case 'max':
+        success = setVolume(200);
+        break;
+      case 'default':
+        success = setVolume(100);
+        break;
+      case 'mute':
+        success = setVolume(0);
+        break;
+    }
+    
+    if (!success) {
+      return interaction.reply('❌ Failed to adjust volume!');
+    }
+    
+    const newVolume = getVolume();
+    return interaction.reply(`🔊 Volume: **${newVolume}%**`);
+  }
+});
+```
+
+## Example: Volume Presets
+
+```typescript
+import { useVolume } from 'discord-player';
+
+const VOLUME_PRESETS = {
+  quiet: 25,
+  low: 50,
+  normal: 100,
+  high: 150,
+  max: 200
+} as const;
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('preset')
+    .setDescription('Set volume to a preset level')
+    .addStringOption(option =>
+      option.setName('level')
+        .setDescription('Preset level')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Quiet (25%)', value: 'quiet' },
+          { name: 'Low (50%)', value: 'low' },
+          { name: 'Normal (100%)', value: 'normal' },
+          { name: 'High (150%)', value: 'high' },
+          { name: 'Max (200%)', value: 'max' }
+        )
+    ),
+  async execute({ interaction }) {
+    const [getVolume, setVolume] = useVolume();
+    const preset = interaction.options.getString('level', true) as keyof typeof VOLUME_PRESETS;
+    const level = VOLUME_PRESETS[preset];
+    
+    const success = setVolume(level);
+    
+    if (!success) {
+      return interaction.reply('❌ Failed to set volume!');
+    }
+    
+    return interaction.reply(`🔊 Volume preset: **${preset}** (${level}%)`);
+  }
+});
+```
+
+## Example: Volume with Validation
+
+```typescript
+import { useVolume } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('safevolume')
+    .setDescription('Set volume with safety limits')
+    .addIntegerOption(option =>
+      option.setName('level')
+        .setDescription('Volume level')
+        .setRequired(true)
+    ),
+  async execute({ interaction }) {
+    const [getVolume, setVolume] = useVolume();
+    const requestedLevel = interaction.options.getInteger('level', true);
+    
+    // Safety limits
+    const MIN_VOLUME = 0;
+    const MAX_VOLUME = 150; // Limit to 150% instead of 200%
+    const WARN_THRESHOLD = 120;
+    
+    if (requestedLevel < MIN_VOLUME || requestedLevel > MAX_VOLUME) {
+      return interaction.reply(
+        `❌ Volume must be between ${MIN_VOLUME}% and ${MAX_VOLUME}%`
+      );
+    }
+    
+    const success = setVolume(requestedLevel);
+    
+    if (!success) {
+      return interaction.reply('❌ Failed to set volume!');
+    }
+    
+    let message = `🔊 Volume set to **${requestedLevel}%**`;
+    
+    if (requestedLevel > WARN_THRESHOLD) {
+      message += '\n⚠️ High volume may cause audio distortion';
+    }
+    
+    return interaction.reply(message);
+  }
+});
+```
+
+## Example: Smooth Volume Fade
+
+```typescript
+import { useVolume } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('fade')
+    .setDescription('Gradually fade volume')
+    .addIntegerOption(option =>
+      option.setName('target')
+        .setDescription('Target volume')
+        .setRequired(true)
+        .setMinValue(0)
+        .setMaxValue(200)
+    )
+    .addIntegerOption(option =>
+      option.setName('duration')
+        .setDescription('Fade duration in seconds')
+        .setMinValue(1)
+        .setMaxValue(30)
+    ),
+  async execute({ interaction }) {
+    const [getVolume, setVolume] = useVolume();
+    const target = interaction.options.getInteger('target', true);
+    const duration = interaction.options.getInteger('duration') || 5;
+    
+    const current = getVolume();
+    const steps = 20;
+    const stepDelay = (duration * 1000) / steps;
+    const stepSize = (target - current) / steps;
+    
+    await interaction.reply(
+      `🎚️ Fading from ${current}% to ${target}% over ${duration}s...`
+    );
+    
+    for (let i = 1; i <= steps; i++) {
+      const newVolume = Math.round(current + (stepSize * i));
+      setVolume(newVolume);
+      await new Promise(resolve => setTimeout(resolve, stepDelay));
+    }
+    
+    await interaction.followUp(`✅ Fade complete at ${target}%`);
+  }
+});
+```
+
+## Example: With Custom Guild
+
+```typescript
+import { useVolume } from 'discord-player';
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('crossvolume')
+    .setDescription('Control volume in another guild')
+    .addStringOption(option =>
+      option.setName('guild-id')
+        .setDescription('Target guild ID')
+        .setRequired(true)
+    )
+    .addIntegerOption(option =>
+      option.setName('level')
+        .setDescription('Volume level')
+        .setRequired(true)
+        .setMinValue(0)
+        .setMaxValue(200)
+    ),
+  async execute({ interaction }) {
+    const guildId = interaction.options.getString('guild-id', true);
+    const level = interaction.options.getInteger('level', true);
+    
+    const [getVolume, setVolume] = useVolume(guildId);
+    
+    const success = setVolume(level);
+    
+    if (!success) {
+      return interaction.reply(`❌ Failed to set volume for guild ${guildId}`);
+    }
+    
+    return interaction.reply(
+      `✅ Set volume to ${level}% for guild ${guildId}`
+    );
+  }
+});
+```
+
+## Example: Volume Toggle
+
+```typescript
+import { useVolume } from 'discord-player';
+
+let previousVolume = 100;
+
+export default createCommand({
+  data: new SlashCommandBuilder()
+    .setName('mute')
+    .setDescription('Toggle mute'),
+  async execute({ interaction }) {
+    const [getVolume, setVolume] = useVolume();
+    const current = getVolume();
+    
+    if (current === 0) {
+      // Unmute - restore previous volume
+      setVolume(previousVolume);
+      return interaction.reply(`🔊 Unmuted (${previousVolume}%)`);
+    } else {
+      // Mute - save current volume and set to 0
+      previousVolume = current;
+      setVolume(0);
+      return interaction.reply('🔇 Muted');
+    }
+  }
+});
+```
+
+## Related Hooks
+
+- [useTimeline](/api/hooks/use-timeline) - Full playback control including volume
+- [useQueue](/api/hooks/use-queue) - Access guild queue
+- [useMetadata](/api/hooks/use-metadata) - Manage queue metadata

@@ -1,0 +1,475 @@
+---
+title: Equalizer
+description: 15-band equalizer with presets for precise frequency control
+icon: sliders
+---
+
+## Overview
+
+Discord Player features a professional 15-band equalizer running at 48kHz sampling rate. The equalizer provides precise control over audio frequencies and includes 18 built-in presets for common audio profiles.
+
+## Technical Specifications
+
+<CardGroup cols={2}>
+  <Card title="Band Count" icon="wave-square">
+    15 frequency bands
+  </Card>
+  <Card title="Sample Rate" icon="gauge">
+    48,000 Hz
+  </Card>
+  <Card title="Presets" icon="bookmark">
+    18 professional presets
+  </Card>
+  <Card title="Processing" icon="microchip">
+    Real-time PCM transformation
+  </Card>
+</CardGroup>
+
+## Equalizer Bands
+
+The 15-band equalizer divides the audio spectrum into distinct frequency ranges:
+
+```typescript
+interface EqualizerBand {
+  band: number;  // Band index (0-14)
+  gain: number;  // Gain multiplier
+}
+```
+
+### Band Configuration
+
+```typescript
+const bands: EqualizerBand[] = [
+  { band: 0, gain: 0.25 },   // 25 Hz
+  { band: 1, gain: 0.40 },   // 40 Hz
+  { band: 2, gain: 0.63 },   // 63 Hz
+  { band: 3, gain: 0.10 },   // 100 Hz
+  { band: 4, gain: 0.16 },   // 160 Hz
+  { band: 5, gain: 0.25 },   // 250 Hz
+  { band: 6, gain: 0.40 },   // 400 Hz
+  { band: 7, gain: 0.63 },   // 630 Hz
+  { band: 8, gain: 0.10 },   // 1 kHz
+  { band: 9, gain: 0.16 },   // 1.6 kHz
+  { band: 10, gain: 0.25 },  // 2.5 kHz
+  { band: 11, gain: 0.40 },  // 4 kHz
+  { band: 12, gain: 0.63 },  // 6.3 kHz
+  { band: 13, gain: 0.10 },  // 10 kHz
+  { band: 14, gain: 0.16 }   // 16 kHz
+];
+
+await queue.filters.equalizer?.setEQ(bands);
+```
+
+## Built-in Presets
+
+Discord Player includes 18 professionally tuned equalizer presets:
+
+### Music Genres
+
+<Tabs>
+  <Tab title="Rock">
+    ```typescript
+    import { EqualizerConfigurationPreset } from 'discord-player';
+
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Rock
+    );
+    ```
+    
+    **Profile:** Enhanced bass and treble with reduced mids
+    - Heavy low-end punch
+    - Clear high frequencies
+    - Reduced mid-range for clarity
+  </Tab>
+  
+  <Tab title="Pop">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Pop
+    );
+    ```
+    
+    **Profile:** Balanced with enhanced vocals
+    - Moderate bass boost
+    - Enhanced mid-range for vocals
+    - Smooth high-end
+  </Tab>
+  
+  <Tab title="Classical">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Classical
+    );
+    ```
+    
+    **Profile:** Natural, reduced highs
+    - Flat low frequencies
+    - Reduced upper-mids and treble
+    - Preserve acoustic instrument balance
+  </Tab>
+  
+  <Tab title="Dance">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Dance
+    );
+    ```
+    
+    **Profile:** Heavy bass, enhanced highs
+    - Strong bass presence
+    - Reduced mid-range
+    - Enhanced kick drum and hi-hats
+  </Tab>
+</Tabs>
+
+### Bass Presets
+
+<CardGroup cols={2}>
+  <Card title="Full Bass" icon="drum">
+    ```typescript
+    EqualizerConfigurationPreset.FullBass
+    ```
+    Maximum bass with reduced treble
+  </Card>
+  
+  <Card title="Full Bass + Treble" icon="music">
+    ```typescript
+    EqualizerConfigurationPreset.FullBassTreble
+    ```
+    Enhanced bass and treble, V-shaped curve
+  </Card>
+</CardGroup>
+
+### Listening Environments
+
+<AccordionGroup>
+  <Accordion title="Headphones">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Headphones
+    );
+    ```
+    Optimized for headphone listening with enhanced spatial characteristics.
+  </Accordion>
+  
+  <Accordion title="Large Hall">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.LargeHall
+    );
+    ```
+    Simulates large hall acoustics with enhanced reverb-friendly frequencies.
+  </Accordion>
+  
+  <Accordion title="Live">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Live
+    );
+    ```
+    Live performance sound with enhanced presence.
+  </Accordion>
+  
+  <Accordion title="Party">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Party
+    );
+    ```
+    Exciting bass and treble boost for energetic listening.
+  </Accordion>
+</AccordionGroup>
+
+### Specialty Presets
+
+<Tabs>
+  <Tab title="Techno">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Techno
+    );
+    ```
+  </Tab>
+  
+  <Tab title="Reggae">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Reggae
+    );
+    ```
+  </Tab>
+  
+  <Tab title="Ska">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Ska
+    );
+    ```
+  </Tab>
+  
+  <Tab title="Soft">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Soft
+    );
+    ```
+  </Tab>
+  
+  <Tab title="Soft Rock">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.SoftRock
+    );
+    ```
+  </Tab>
+  
+  <Tab title="Club">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Club
+    );
+    ```
+  </Tab>
+  
+  <Tab title="Full Treble">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.FullTreble
+    );
+    ```
+  </Tab>
+  
+  <Tab title="Flat">
+    ```typescript
+    await queue.filters.equalizer?.setEQ(
+      EqualizerConfigurationPreset.Flat
+    );
+    ```
+    No equalization - neutral sound
+  </Tab>
+</Tabs>
+
+## Usage Examples
+
+### Apply Preset
+
+```typescript
+import { EqualizerConfigurationPreset } from 'discord-player';
+
+// Apply rock preset
+await queue.filters.equalizer?.setEQ(
+  EqualizerConfigurationPreset.Rock
+);
+```
+
+### Custom Equalizer
+
+```typescript
+// Create custom EQ curve
+const customEQ: EqualizerBand[] = Array.from(
+  { length: 15 },
+  (_, i) => ({
+    band: i,
+    gain: i < 5 ? 0.8 : 0.2  // Boost bass, reduce treble
+  })
+);
+
+await queue.filters.equalizer?.setEQ(customEQ);
+```
+
+### Get Current EQ
+
+```typescript
+const currentEQ = queue.filters.equalizer?.getEQ();
+console.log(currentEQ);
+// [
+//   { band: 0, gain: 0.25 },
+//   { band: 1, gain: 0.40 },
+//   ...
+// ]
+```
+
+### Get Band Multipliers
+
+```typescript
+const multipliers = queue.filters.equalizer?.bandMultipliers;
+console.log(multipliers); // [0.25, 0.40, 0.63, ...]
+```
+
+## Disable Equalizer
+
+You can disable the equalizer at queue creation:
+
+```typescript
+const queue = player.queues.create(guild, {
+  disableEqualizer: true  // Disable 15-band EQ
+});
+```
+
+## Advanced Configuration
+
+### Helper Function for Presets
+
+The preset system uses a helper function to convert gain values:
+
+```typescript
+const makeBands = (arr: number[]) => {
+  return Array.from(
+    { length: 15 },  // 15 bands
+    (_, i) => ({
+      band: i,
+      gain: arr[i] ? arr[i] / 30 : 0  // Normalize gain
+    })
+  );
+};
+
+// Example: Create bass-heavy preset
+const heavyBass = makeBands([
+  12.0, 10.0, 8.0, 6.0, 4.0,  // High bass
+  2.0, 0, 0, 0, 0,            // Neutral mids
+  0, 0, 0, 0, 0               // Neutral highs
+]);
+```
+
+### Access Presets Object
+
+```typescript
+// All presets are available on the filters object
+const presets = queue.filters.equalizerPresets;
+
+// Access any preset
+const rockPreset = presets.Rock;
+const popPreset = presets.Pop;
+const flatPreset = presets.Flat;
+```
+
+## Integration with Other Filters
+
+### Combine with FFmpeg Filters
+
+```typescript
+// Apply EQ preset
+await queue.filters.equalizer?.setEQ(
+  EqualizerConfigurationPreset.Rock
+);
+
+// Add FFmpeg filters on top
+await queue.filters.ffmpeg.setFilters(['bassboost', 'normalizer']);
+```
+
+### Use with Volume Control
+
+```typescript
+// Set EQ
+await queue.filters.equalizer?.setEQ(
+  EqualizerConfigurationPreset.FullBass
+);
+
+// Adjust volume to compensate
+queue.node.setVolume(80);
+```
+
+## Real-time Updates
+
+```typescript
+// EQ changes are applied in real-time without interruption
+const eqPresets = [
+  'Rock', 'Pop', 'Dance', 'Classical'
+] as const;
+
+let currentIndex = 0;
+
+setInterval(() => {
+  const presetName = eqPresets[currentIndex];
+  queue.filters.equalizer?.setEQ(
+    EqualizerConfigurationPreset[presetName]
+  );
+  
+  currentIndex = (currentIndex + 1) % eqPresets.length;
+}, 10000); // Change preset every 10 seconds
+```
+
+## Events
+
+```typescript
+queue.on('eqBands', (filters) => {
+  console.log('Equalizer bands updated:', filters);
+});
+```
+
+## Graph Representation
+
+Get equalizer state for visualization:
+
+```typescript
+const graph = queue.filters.graph.dump();
+
+console.log('Equalizer:', graph.equalizer);
+// [
+//   { band: 0, gain: 0.267 },
+//   { band: 1, gain: 0.160 },
+//   ...
+// ]
+```
+
+## Best Practices
+
+<Warning>
+**Performance**
+- Equalizer processing happens in real-time on PCM audio
+- No latency or stream interruption when changing EQ
+- Minimal CPU overhead
+</Warning>
+
+<Tip>
+**Recommendations**
+- Start with presets before creating custom curves
+- Use `Flat` preset to disable EQ without disabling the feature
+- Combine with `normalizer` filter to prevent clipping
+- Test EQ changes with different audio sources
+- Gain values are multipliers (1.0 = no change)
+</Tip>
+
+<Note>
+**Gain Values**
+Gain values in presets are normalized (divided by 30). A raw value of 9.6 becomes a gain of 0.32.
+</Note>
+
+## Complete Preset List
+
+```typescript
+const allPresets = [
+  'Flat',
+  'Classical',
+  'Club',
+  'Dance',
+  'FullBass',
+  'FullBassTreble',
+  'FullTreble',
+  'Headphones',
+  'LargeHall',
+  'Live',
+  'Party',
+  'Pop',
+  'Reggae',
+  'Rock',
+  'Ska',
+  'Soft',
+  'SoftRock',
+  'Techno'
+];
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Audio Filters" icon="waveform" href="/audio/filters">
+    FFmpeg audio filters and effects
+  </Card>
+  <Card title="Volume Control" icon="volume" href="/audio/volume-control">
+    Manage playback volume
+  </Card>
+  <Card title="Stream Config" icon="gear" href="/audio/stream-config">
+    Configure audio stream processing
+  </Card>
+</CardGroup>

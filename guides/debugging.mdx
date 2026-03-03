@@ -1,0 +1,572 @@
+---
+title: Debugging & Troubleshooting
+description: Tools and techniques for debugging Discord Player issues
+icon: bug
+---
+
+## Overview
+
+Discord Player includes comprehensive debugging capabilities to help you diagnose issues. This guide covers debug events, dependency scanning, and common troubleshooting scenarios.
+
+## Debug Events
+
+### Queue Debug Events
+
+Monitor detailed queue operations:
+
+```typescript GuildQueue.ts
+import { GuildQueueEvent } from 'discord-player';
+
+player.events.on(GuildQueueEvent.Debug, (queue, message) => {
+  console.log(`[${queue.guild.name}] ${message}`);
+});
+```
+
+Example output:
+```
+[My Server] GuildQueue initialized for guild My Server (ID: 123456789)
+[My Server] Connecting to voice channel General Voice (ID: 987654321)
+[My Server] Track "Song Title" was marked as finished
+[My Server] No more tracks left in the queue to play and repeat mode is off
+```
+
+### Player Debug Events
+
+Monitor player-level operations:
+
+```typescript Player.ts
+player.on('debug', (message) => {
+  console.log(`[Player] ${message}`);
+});
+```
+
+Example output:
+```
+[Player] Searching never gonna give you up
+[Player] Search engine set to auto, fallback search engine set to auto
+[Player] Executing extractors...
+[Player] Executing metadata query using youtube extractor...
+[Player] Metadata query was successful!
+[Player] Adding data to cache...
+```
+
+### Stream Debug Events
+
+Detailed stream and audio processing information:
+
+```typescript
+player.events.on(GuildQueueEvent.Debug, (queue, message) => {
+  if (message.includes('Initiating') || message.includes('stream')) {
+    console.log(`[Stream] ${message}`);
+  }
+});
+```
+
+Example output:
+```
+[Stream] Initiating stream extraction process...
+[Stream] Initiating DSP filters pipeline...
+[Stream] Preparing AudioResource...
+[Stream] Dispatching audio...
+```
+
+## Check Debug State
+
+Determine if debugging is enabled:
+
+```typescript
+// Check if player has debug listener
+const hasDebugger = player.hasDebugger;
+
+// Check if queue has debug listener
+const queueHasDebugger = queue.hasDebugger;
+
+if (queue.hasDebugger) {
+  queue.debug('Custom debug message');
+}
+```
+
+## Dependency Scanner
+
+Generate a comprehensive report of your environment:
+
+```typescript Player.ts
+const report = player.scanDeps();
+console.log(report);
+```
+
+Example output:
+```
+Discord Player
+--------------------------------------------------
+- discord-player: 6.7.0
+- discord-voip: 0.5.0
+- discord.js: 14.14.1
+- Node version: v20.11.0 (Detected Runtime: Node, Platform: linux [x64])
+- ffmpeg: 6.1.1
+- command: ffmpeg
+- static: @ffmpeg-installer/ffmpeg
+- libopus: true
+
+Loaded Extractors:
+--------------------------------------------------
+youtube
+spotify
+soundcloud
+apple-music
+
+discord-voip
+[Dependency report details...]
+```
+
+<Info>
+Use `player.scanDeps()` when reporting issues or debugging environment problems.
+</Info>
+
+## Debug Specific Components
+
+### Voice State Debugging
+
+```typescript DefaultVoiceStateHandler.ts
+player.events.on(GuildQueueEvent.Debug, (queue, message) => {
+  if (message.includes('Voice channel') || message.includes('pauseOnEmpty')) {
+    console.log(`[Voice State] ${message}`);
+  }
+});
+```
+
+Example messages:
+```
+[Voice State] Voice channel is empty and options#pauseOnEmpty is true, pausing...
+[Voice State] Voice channel is not empty and options#pauseOnEmpty is true, resuming...
+```
+
+### Autoplay Debugging
+
+```typescript GuildQueue.ts
+player.events.on(GuildQueueEvent.Debug, (queue, message) => {
+  if (message.includes('Autoplay')) {
+    console.log(`[Autoplay] ${message}`);
+  }
+});
+```
+
+Example messages:
+```
+[Autoplay] Autoplay >> Finding related tracks for Track Song Title (https://...)
+[Autoplay] Autoplay >> Querying extractor youtube
+[Autoplay] Autoplay >> Extractor youtube successfully returned results.
+```
+
+### Extractor Debugging
+
+```typescript Player.ts
+player.on('debug', (message) => {
+  if (message.includes('extractor')) {
+    console.log(`[Extractor] ${message}`);
+  }
+});
+```
+
+Example messages:
+```
+[Extractor] youtube extractor loaded!
+[Extractor] youtube extractor activated!
+[Extractor] Executing metadata query using youtube extractor...
+[Extractor] Failed to find appropriate extractor
+```
+
+### Cache Debugging
+
+```typescript Player.ts
+player.on('debug', (message) => {
+  if (message.includes('cache') || message.includes('Cache')) {
+    console.log(`[Cache] ${message}`);
+  }
+});
+```
+
+Example messages:
+```
+[Cache] Checking cache...
+[Cache] Cache hit for query never gonna give you up
+[Cache] Cache miss for query some random query
+[Cache] Adding data to cache...
+```
+
+## Event Loop Monitoring
+
+Monitor event loop latency to detect performance issues:
+
+```typescript Player.ts
+const player = new Player(client, {
+  lagMonitor: 30000, // Check every 30 seconds
+});
+
+player.on('debug', (message) => {
+  if (message.includes('Event loop latency')) {
+    console.log(message);
+  }
+});
+
+// Check current latency
+const latency = player.eventLoopLag;
+if (latency > 100) {
+  console.warn(`High event loop lag detected: ${latency}ms`);
+}
+```
+
+<Warning>
+Event loop latency above 100ms indicates your bot is processing expensive operations that may affect performance.
+</Warning>
+
+## AsyncQueue Debugging
+
+Track async queue operations:
+
+```typescript Player.ts
+player.on('debug', (message) => {
+  if (message.includes('[AsyncQueue]')) {
+    console.log(message);
+  }
+});
+```
+
+Example messages:
+```
+[AsyncQueue] Acquiring an entry...
+[AsyncQueue] Entry 1234567890 was acquired successfully!
+[AsyncQueue] Waiting for the queue to resolve...
+[AsyncQueue] Entry 1234567890 was resolved!
+[AsyncQueue] Releasing an entry from the queue...
+```
+
+## Track-Level Debugging
+
+```typescript GuildQueue.ts
+player.events.on(GuildQueueEvent.Debug, (queue, message) => {
+  if (message.includes('Track')) {
+    const match = message.match(/Track (.+?)(?:\s|$)/)?.[1];
+    if (match) {
+      console.log(`[Track Event] ${message}`);
+    }
+  }
+});
+```
+
+## Player Statistics
+
+Generate runtime statistics:
+
+```typescript Player.ts
+const stats = player.generateStatistics();
+
+console.log(`Active Queues: ${stats.queuesCount}`);
+console.log(`Query Cache: ${stats.queryCacheEnabled ? 'Enabled' : 'Disabled'}`);
+
+stats.queues.forEach((queueStats) => {
+  console.log(`\nGuild: ${queueStats.id}`);
+  console.log(`Queue Size: ${queueStats.tracksCount}`);
+  console.log(`History Size: ${queueStats.historySize}`);
+  console.log(`Current Track: ${queueStats.currentTrackTitle}`);
+});
+```
+
+## Common Issues & Solutions
+
+### No Audio Playing
+
+<Steps>
+  <Step title="Check Debug Output">
+    Enable debug mode and look for error messages during playback initialization.
+    
+    ```typescript
+    player.events.on(GuildQueueEvent.Debug, console.log);
+    ```
+  </Step>
+  
+  <Step title="Verify FFmpeg">
+    Run `player.scanDeps()` to ensure FFmpeg is installed and detected.
+    
+    ```typescript
+    const report = player.scanDeps();
+    console.log(report);
+    // Look for "ffmpeg:" in output
+    ```
+  </Step>
+  
+  <Step title="Check Voice Connection">
+    Verify the bot is connected to a voice channel.
+    
+    ```typescript
+    const queue = player.nodes.get(guildId);
+    console.log('Connected:', !!queue?.connection);
+    console.log('Channel:', queue?.channel?.name);
+    ```
+  </Step>
+  
+  <Step title="Test Stream">
+    Try playing a known working URL to isolate the issue.
+    
+    ```typescript
+    await player.play(channel, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    ```
+  </Step>
+</Steps>
+
+### Extractor Not Working
+
+```typescript
+// Check if extractor is loaded
+const hasExtractor = player.extractors.get('youtube');
+console.log('YouTube extractor loaded:', !!hasExtractor);
+
+// Check if extractor is disabled
+const isDisabled = player.extractors.isDisabled('youtube');
+console.log('YouTube extractor disabled:', isDisabled);
+
+// List all extractors
+const allExtractors = player.extractors.store.map(e => e.identifier);
+console.log('All extractors:', allExtractors);
+```
+
+### Memory Issues
+
+```typescript
+// Monitor queue sizes
+player.nodes.cache.forEach((queue) => {
+  console.log(`${queue.guild.name}:`);
+  console.log(`  Queue: ${queue.size}/${queue.maxSize}`);
+  console.log(`  History: ${queue.history.size}/${queue.maxHistorySize}`);
+  
+  if (queue.size > 500) {
+    console.warn(`Large queue detected in ${queue.guild.name}`);
+  }
+});
+
+// Set reasonable limits
+queue.setMaxSize(1000);
+queue.setMaxHistorySize(100);
+```
+
+### Connection Issues
+
+```typescript
+player.events.on(GuildQueueEvent.ConnectionDestroyed, (queue) => {
+  console.log(`Connection destroyed in ${queue.guild.name}`);
+  // Log voice state
+  console.log('Bot voice state:', queue.guild.members.me?.voice.channelId);
+});
+
+player.events.on(GuildQueueEvent.Disconnect, (queue) => {
+  console.log(`Bot disconnected from ${queue.guild.name}`);
+});
+
+// Check ping
+const ping = queue.ping;
+console.log(`Voice connection ping: ${ping}ms`);
+```
+
+### Search Failures
+
+```typescript
+player.on('debug', (message) => {
+  if (message.includes('Search') || message.includes('extractor')) {
+    console.log(message);
+  }
+});
+
+try {
+  const result = await player.search(query, {
+    requestedBy: user,
+  });
+  
+  console.log('Search results:', result.tracks.length);
+  console.log('Used extractor:', result.extractor?.identifier);
+  console.log('Query type:', result.queryType);
+} catch (error) {
+  console.error('Search failed:', error);
+}
+```
+
+## Advanced Debugging
+
+### Custom Debug Logger
+
+```typescript
+class DebugLogger {
+  private logs: Array<{ timestamp: number; source: string; message: string }> = [];
+  
+  constructor(player: Player) {
+    player.on('debug', (message) => {
+      this.log('Player', message);
+    });
+    
+    player.events.on(GuildQueueEvent.Debug, (queue, message) => {
+      this.log(`Queue:${queue.guild.name}`, message);
+    });
+  }
+  
+  private log(source: string, message: string) {
+    this.logs.push({
+      timestamp: Date.now(),
+      source,
+      message,
+    });
+    
+    // Keep last 1000 logs
+    if (this.logs.length > 1000) {
+      this.logs.shift();
+    }
+    
+    console.log(`[${new Date().toISOString()}] [${source}] ${message}`);
+  }
+  
+  export(filename: string) {
+    const fs = require('fs');
+    fs.writeFileSync(filename, JSON.stringify(this.logs, null, 2));
+    console.log(`Debug logs exported to ${filename}`);
+  }
+  
+  search(keyword: string) {
+    return this.logs.filter(log => 
+      log.message.toLowerCase().includes(keyword.toLowerCase())
+    );
+  }
+}
+
+const debugLogger = new DebugLogger(player);
+
+// Later, export logs
+debugLogger.export('debug-logs.json');
+
+// Or search logs
+const errorLogs = debugLogger.search('error');
+```
+
+### Performance Monitoring
+
+```typescript
+class PerformanceMonitor {
+  private metrics = {
+    searches: 0,
+    searchTime: 0,
+    plays: 0,
+    errors: 0,
+  };
+  
+  constructor(player: Player) {
+    player.events.on(GuildQueueEvent.PlayerStart, () => {
+      this.metrics.plays++;
+    });
+    
+    player.events.on(GuildQueueEvent.Error, () => {
+      this.metrics.errors++;
+    });
+  }
+  
+  async monitorSearch<T>(searchFn: () => Promise<T>): Promise<T> {
+    const start = performance.now();
+    this.metrics.searches++;
+    
+    try {
+      return await searchFn();
+    } finally {
+      const duration = performance.now() - start;
+      this.metrics.searchTime += duration;
+    }
+  }
+  
+  getStats() {
+    return {
+      ...this.metrics,
+      avgSearchTime: this.metrics.searchTime / this.metrics.searches,
+      errorRate: this.metrics.errors / this.metrics.plays,
+    };
+  }
+}
+
+const perfMonitor = new PerformanceMonitor(player);
+
+// Use it
+const result = await perfMonitor.monitorSearch(() => 
+  player.search(query)
+);
+
+// Get stats
+console.log(perfMonitor.getStats());
+```
+
+## Debugging Checklist
+
+<AccordionGroup>
+  <Accordion title="Environment Check">
+    - Run `player.scanDeps()` to verify all dependencies
+    - Check Node.js version (v16.9.0 or higher)
+    - Verify FFmpeg is installed and accessible
+    - Ensure `GuildVoiceStates` intent is enabled
+  </Accordion>
+  
+  <Accordion title="Connection Check">
+    - Verify bot is in voice channel: `queue.channel`
+    - Check voice connection state: `queue.connection`
+    - Monitor disconnect events
+    - Check voice connection ping: `queue.ping`
+  </Accordion>
+  
+  <Accordion title="Queue Check">
+    - Verify queue exists: `player.nodes.get(guildId)`
+    - Check queue size: `queue.size`
+    - Verify tracks in queue: `queue.tracks.store`
+    - Check if playing: `queue.isPlaying()`
+  </Accordion>
+  
+  <Accordion title="Error Monitoring">
+    - Listen to `GuildQueueEvent.Error`
+    - Listen to `GuildQueueEvent.PlayerError`
+    - Listen to player `'error'` event
+    - Enable debug mode for detailed logs
+  </Accordion>
+  
+  <Accordion title="Performance Check">
+    - Monitor event loop lag: `player.eventLoopLag`
+    - Check queue sizes across guilds
+    - Monitor memory usage
+    - Review search times
+  </Accordion>
+</AccordionGroup>
+
+## Compatibility Mode
+
+Check if running in compatibility mode:
+
+```typescript
+const isCompat = player.isCompatMode();
+if (isCompat) {
+  console.log('Running in compatibility mode');
+}
+
+// Scan deps shows compatibility info
+const report = player.scanDeps();
+// Look for "(compatibility mode)" in output
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Enable Debug Early" icon="toggle-on">
+    Enable debug logging during development to catch issues early.
+  </Card>
+  
+  <Card title="Use scanDeps()" icon="magnifying-glass">
+    Always run `player.scanDeps()` when reporting issues or debugging environment problems.
+  </Card>
+  
+  <Card title="Monitor Performance" icon="gauge-high">
+    Track event loop lag and queue sizes to prevent performance degradation.
+  </Card>
+  
+  <Card title="Log Contextually" icon="list-check">
+    Include relevant context (guild, track, queue state) in debug messages.
+  </Card>
+</CardGroup>

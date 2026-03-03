@@ -1,0 +1,300 @@
+---
+title: QueryResolver
+description: Utility for resolving and parsing search queries
+icon: magnifying-glass
+---
+
+## Overview
+
+The `QueryResolver` class is a utility that analyzes and resolves search queries to determine their type (YouTube, Spotify, SoundCloud, etc.). It automatically detects URLs, playlists, tracks, and search queries.
+
+## Static Methods
+
+### resolve()
+
+Resolves a search query and returns its type and normalized query.
+
+```typescript
+QueryResolver.resolve(query: string, fallbackSearchEngine?: QueryType): ResolvedQuery
+```
+
+<ParamField path="query" type="string" required>
+  The search query or URL to resolve
+</ParamField>
+
+<ParamField path="fallbackSearchEngine" type="QueryType" default="QueryType.AUTO_SEARCH">
+  The query type to use when the query cannot be resolved to a specific type
+</ParamField>
+
+<ResponseField name="type" type="QueryType">
+  The resolved query type (e.g., 'youtubeVideo', 'spotifyPlaylist', etc.)
+</ResponseField>
+
+<ResponseField name="query" type="string">
+  The normalized query string
+</ResponseField>
+
+#### Example
+
+```typescript
+import { QueryResolver, QueryType } from 'discord-player';
+
+// Resolve a YouTube URL
+const result = QueryResolver.resolve('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+console.log(result);
+// { type: 'youtubeVideo', query: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }
+
+// Resolve a Spotify playlist
+const spotify = QueryResolver.resolve('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M');
+console.log(spotify.type); // 'spotifyPlaylist'
+
+// Resolve a search query
+const search = QueryResolver.resolve('never gonna give you up');
+console.log(search.type); // 'autoSearch'
+```
+
+---
+
+### preResolve()
+
+Pre-resolves redirect URLs (e.g., spotify.link, soundcloud short links) to their final destination.
+
+```typescript
+QueryResolver.preResolve(query: string, maxDepth?: number): Promise<string>
+```
+
+<ParamField path="query" type="string" required>
+  The URL to pre-resolve
+</ParamField>
+
+<ParamField path="maxDepth" type="number" default={5}>
+  Maximum number of redirects to follow
+</ParamField>
+
+<ResponseField name="resolvedUrl" type="string">
+  The final resolved URL after following redirects
+</ResponseField>
+
+#### Example
+
+```typescript
+// Resolve a Spotify short link
+const url = await QueryResolver.preResolve('https://spotify.link/abc123');
+console.log(url); // 'https://open.spotify.com/track/...'
+
+// Resolve a SoundCloud short link
+const scUrl = await QueryResolver.preResolve('https://on.soundcloud.com/xyz');
+console.log(scUrl); // 'https://soundcloud.com/artist/track'
+```
+
+---
+
+### getVimeoID()
+
+Extracts the Vimeo video ID from a Vimeo URL.
+
+```typescript
+QueryResolver.getVimeoID(query: string): string | null | undefined
+```
+
+<ParamField path="query" type="string" required>
+  The Vimeo URL
+</ParamField>
+
+<ResponseField name="id" type="string | null">
+  The Vimeo video ID, or null if the URL is not a valid Vimeo URL
+</ResponseField>
+
+#### Example
+
+```typescript
+const vimeoId = QueryResolver.getVimeoID('https://vimeo.com/123456789');
+console.log(vimeoId); // '123456789'
+
+const invalid = QueryResolver.getVimeoID('https://youtube.com/watch?v=123');
+console.log(invalid); // null
+```
+
+---
+
+### validateId()
+
+Validates if a string is a valid YouTube video ID (11 characters).
+
+```typescript
+QueryResolver.validateId(q: string): boolean
+```
+
+<ParamField path="q" type="string" required>
+  The string to validate as a YouTube video ID
+</ParamField>
+
+<ResponseField name="isValid" type="boolean">
+  True if the string is a valid YouTube video ID format
+</ResponseField>
+
+#### Example
+
+```typescript
+const valid = QueryResolver.validateId('dQw4w9WgXcQ');
+console.log(valid); // true
+
+const invalid = QueryResolver.validateId('not-a-valid-id');
+console.log(invalid); // false
+```
+
+---
+
+### validateURL()
+
+Validates if a string is a valid YouTube video URL.
+
+```typescript
+QueryResolver.validateURL(q: string): boolean
+```
+
+<ParamField path="q" type="string" required>
+  The string to validate as a YouTube video URL
+</ParamField>
+
+<ResponseField name="isValid" type="boolean">
+  True if the string is a valid YouTube video URL format
+</ResponseField>
+
+#### Example
+
+```typescript
+const valid = QueryResolver.validateURL('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+console.log(valid); // true
+
+const shortUrl = QueryResolver.validateURL('https://youtu.be/dQw4w9WgXcQ');
+console.log(shortUrl); // true
+
+const invalid = QueryResolver.validateURL('https://spotify.com/track/123');
+console.log(invalid); // false
+```
+
+---
+
+## Static Properties
+
+### regex
+
+Access to all internal regex patterns used for URL matching.
+
+```typescript
+QueryResolver.regex: {
+  spotifyAlbumRegex: RegExp;
+  spotifyPlaylistRegex: RegExp;
+  spotifySongRegex: RegExp;
+  vimeoRegex: RegExp;
+  reverbnationRegex: RegExp;
+  attachmentRegex: RegExp;
+  appleMusicAlbumRegex: RegExp;
+  appleMusicPlaylistRegex: RegExp;
+  appleMusicSongRegex: RegExp;
+  soundcloudTrackRegex: RegExp;
+  soundcloudPlaylistRegex: RegExp;
+  youtubePlaylistRegex: RegExp;
+  discordPlayerBlobRegex: RegExp;
+}
+```
+
+#### Example
+
+```typescript
+// Test if a URL matches Spotify song pattern
+const isSpotifySong = QueryResolver.regex.spotifySongRegex.test(
+  'https://open.spotify.com/track/abc123'
+);
+
+// Test if a URL matches YouTube playlist pattern
+const isYouTubePlaylist = QueryResolver.regex.youtubePlaylistRegex.test(
+  'https://www.youtube.com/playlist?list=PLxxx'
+);
+```
+
+---
+
+## QueryType Enum
+
+All possible query types that can be resolved.
+
+```typescript
+const QueryType = {
+  AUTO: 'auto',
+  YOUTUBE: 'youtube',
+  YOUTUBE_PLAYLIST: 'youtubePlaylist',
+  YOUTUBE_VIDEO: 'youtubeVideo',
+  YOUTUBE_SEARCH: 'youtubeSearch',
+  SOUNDCLOUD_TRACK: 'soundcloudTrack',
+  SOUNDCLOUD_PLAYLIST: 'soundcloudPlaylist',
+  SOUNDCLOUD: 'soundcloud',
+  SOUNDCLOUD_SEARCH: 'soundcloudSearch',
+  SPOTIFY_SONG: 'spotifySong',
+  SPOTIFY_ALBUM: 'spotifyAlbum',
+  SPOTIFY_PLAYLIST: 'spotifyPlaylist',
+  SPOTIFY_SEARCH: 'spotifySearch',
+  APPLE_MUSIC_SONG: 'appleMusicSong',
+  APPLE_MUSIC_ALBUM: 'appleMusicAlbum',
+  APPLE_MUSIC_PLAYLIST: 'appleMusicPlaylist',
+  APPLE_MUSIC_SEARCH: 'appleMusicSearch',
+  FACEBOOK: 'facebook',
+  VIMEO: 'vimeo',
+  REVERBNATION: 'reverbnation',
+  ARBITRARY: 'arbitrary',
+  FILE: 'file',
+  AUTO_SEARCH: 'autoSearch',
+  DISCORD_PLAYER_BLOB: 'discordPlayerBlob'
+} as const;
+```
+
+### Usage with Player
+
+```typescript
+import { QueryType } from 'discord-player';
+
+// Force YouTube search
+await player.search('never gonna give you up', {
+  searchEngine: QueryType.YOUTUBE_SEARCH
+});
+
+// Force Spotify search
+await player.search('bohemian rhapsody', {
+  searchEngine: QueryType.SPOTIFY_SEARCH
+});
+```
+
+---
+
+## Types
+
+### ResolvedQuery
+
+```typescript
+interface ResolvedQuery {
+  type: QueryType;
+  query: string;
+}
+```
+
+### SearchQueryType
+
+```typescript
+type SearchQueryType = keyof typeof QueryType | QueryType;
+```
+
+---
+
+## Supported Platforms
+
+QueryResolver automatically detects and resolves URLs from:
+
+- **YouTube**: Videos, playlists, music.youtube.com, gaming.youtube.com
+- **Spotify**: Songs, albums, playlists (including intl-* variants)
+- **SoundCloud**: Tracks, playlists
+- **Apple Music**: Songs, albums, playlists
+- **Vimeo**: Videos
+- **ReverbNation**: Songs
+- **Short Links**: spotify.link, on.soundcloud.com (via preResolve)
+- **Generic URLs**: Any arbitrary URL for custom extractors

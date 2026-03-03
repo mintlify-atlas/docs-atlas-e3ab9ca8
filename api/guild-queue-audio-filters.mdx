@@ -1,0 +1,411 @@
+---
+title: GuildQueueAudioFilters
+description: API reference for the GuildQueueAudioFilters class
+icon: sliders
+---
+
+## GuildQueueAudioFilters
+
+Manages audio filtering and effects for a guild queue. Provides access to FFmpeg filters, equalizers, DSP effects, and various audio transformers.
+
+### Constructor
+
+```typescript
+new GuildQueueAudioFilters<Meta>(queue: GuildQueue<Meta>)
+```
+
+<ParamField path="queue" type="GuildQueue<Meta>" required>
+  The guild queue instance to manage audio filters for
+</ParamField>
+
+### Properties
+
+<ResponseField name="graph" type="AFilterGraph<Meta>">
+  Audio filter graph for inspecting current filter state
+</ResponseField>
+
+<ResponseField name="ffmpeg" type="FFmpegFilterer<Meta>">
+  FFmpeg filter manager for applying audio filters
+</ResponseField>
+
+<ResponseField name="equalizerPresets" type="EqualizerConfigurationPreset">
+  Pre-configured equalizer presets including:
+  - `Flat` - No equalization
+  - `Classical` - Classical music preset
+  - `Club` - Club music preset
+  - `Dance` - Dance music preset
+  - `FullBass` - Enhanced bass
+  - `FullBassTreble` - Enhanced bass and treble
+  - `FullTreble` - Enhanced treble
+  - `Headphones` - Headphones optimized
+  - `LargeHall` - Large hall reverb effect
+  - `Live` - Live performance sound
+  - `Party` - Party music preset
+  - `Pop` - Pop music preset
+  - `Reggae` - Reggae music preset
+  - `Rock` - Rock music preset
+  - `Ska` - Ska music preset
+  - `Soft` - Soft music preset
+  - `SoftRock` - Soft rock preset
+  - `Techno` - Techno music preset
+</ResponseField>
+
+<ResponseField name="queue" type="GuildQueue<Meta>">
+  Reference to the parent guild queue
+</ResponseField>
+
+<ResponseField name="volume" type="VolumeTransformer | null">
+  Volume transformer instance for controlling playback volume
+</ResponseField>
+
+<ResponseField name="equalizer" type="Equalizer | null">
+  15-band equalizer instance for frequency adjustment
+</ResponseField>
+
+<ResponseField name="biquad" type="Biquad | null">
+  Digital biquad filters for advanced audio processing
+</ResponseField>
+
+<ResponseField name="filters" type="Filters | null">
+  DSP filters instance for digital signal processing
+</ResponseField>
+
+<ResponseField name="resampler" type="Resampler | null">
+  Audio resampler for changing sample rates
+</ResponseField>
+
+<ResponseField name="compressor" type="Compressor | null">
+  Audio compressor transformer for dynamic range compression
+</ResponseField>
+
+<ResponseField name="reverb" type="Reverb | null">
+  Reverb transformer for adding reverb effects
+</ResponseField>
+
+<ResponseField name="seeker" type="Seeker | null">
+  PCM Seeker transformer for track seeking
+</ResponseField>
+
+### Methods
+
+#### triggerReplay
+
+Replays the current track in transition mode, useful when applying new filters.
+
+```typescript
+triggerReplay(seek?: number): Promise<boolean>
+```
+
+<ParamField path="seek" type="number" default={0}>
+  The position in milliseconds to seek to when replaying
+</ParamField>
+
+<ResponseField name="return" type="Promise<boolean>">
+  Returns `true` if replay was successful, `false` otherwise
+</ResponseField>
+
+**Example:**
+```typescript
+// Apply filters and replay from current position
+await queue.filters.triggerReplay();
+
+// Apply filters and replay from 30 seconds
+await queue.filters.triggerReplay(30000);
+```
+
+## FFmpegFilterer
+
+Manages FFmpeg audio filters for the queue.
+
+### Properties
+
+<ResponseField name="filters" type="Filters[]">
+  Currently active FFmpeg filters
+</ResponseField>
+
+<ResponseField name="inputArgs" type="string[]">
+  FFmpeg input arguments
+</ResponseField>
+
+<ResponseField name="encoderArgs" type="string[]">
+  FFmpeg encoder arguments including filter flags
+</ResponseField>
+
+<ResponseField name="args" type="string[]">
+  Combined input and encoder arguments
+</ResponseField>
+
+### Methods
+
+#### setFilters
+
+Set FFmpeg filters to apply to the audio stream.
+
+```typescript
+setFilters(filters: Filters[] | Record<Filters, boolean> | string[] | boolean): Promise<boolean>
+```
+
+<ParamField path="filters" type="Filters[] | Record<Filters, boolean> | string[] | boolean" required>
+  Filters to apply. Can be:
+  - Array of filter names
+  - Object mapping filter names to enabled/disabled state
+  - `true` to enable all filters
+  - `false` to disable all filters
+</ParamField>
+
+<ResponseField name="return" type="Promise<boolean>">
+  Returns `true` if filters were updated successfully
+</ResponseField>
+
+**Example:**
+```typescript
+// Enable specific filters
+await queue.filters.ffmpeg.setFilters(['bassboost', 'nightcore']);
+
+// Use object syntax
+await queue.filters.ffmpeg.setFilters({
+  bassboost: true,
+  nightcore: true,
+  vaporwave: false
+});
+
+// Enable all filters
+await queue.filters.ffmpeg.setFilters(true);
+
+// Disable all filters
+await queue.filters.ffmpeg.setFilters(false);
+```
+
+#### toggle
+
+Toggles the specified FFmpeg filter(s).
+
+```typescript
+toggle(filters: Filters[] | Filters): Promise<boolean>
+```
+
+<ParamField path="filters" type="Filters[] | Filters" required>
+  Filter name(s) to toggle on or off
+</ParamField>
+
+**Example:**
+```typescript
+// Toggle single filter
+await queue.filters.ffmpeg.toggle('nightcore');
+
+// Toggle multiple filters
+await queue.filters.ffmpeg.toggle(['bassboost', '8D']);
+```
+
+#### setInputArgs
+
+Set custom input arguments for FFmpeg.
+
+```typescript
+setInputArgs(args: string[]): void
+```
+
+<ParamField path="args" type="string[]" required>
+  Array of FFmpeg input arguments
+</ParamField>
+
+**Example:**
+```typescript
+queue.filters.ffmpeg.setInputArgs(['-re', '-stream_loop', '-1']);
+```
+
+#### getFiltersEnabled
+
+Get list of currently enabled filters.
+
+```typescript
+getFiltersEnabled(): Filters[]
+```
+
+<ResponseField name="return" type="Filters[]">
+  Array of enabled filter names
+</ResponseField>
+
+#### getFiltersDisabled
+
+Get list of currently disabled filters.
+
+```typescript
+getFiltersDisabled(): Filters[]
+```
+
+<ResponseField name="return" type="Filters[]">
+  Array of disabled filter names
+</ResponseField>
+
+#### isEnabled
+
+Check if a specific filter is enabled.
+
+```typescript
+isEnabled<T extends Filters>(filter: T): boolean
+```
+
+<ParamField path="filter" type="Filters" required>
+  The filter name to check
+</ParamField>
+
+**Example:**
+```typescript
+if (queue.filters.ffmpeg.isEnabled('nightcore')) {
+  console.log('Nightcore is active!');
+}
+```
+
+#### isDisabled
+
+Check if a specific filter is disabled.
+
+```typescript
+isDisabled<T extends Filters>(filter: T): boolean
+```
+
+<ParamField path="filter" type="Filters" required>
+  The filter name to check
+</ParamField>
+
+#### isValidFilter
+
+Check if a string is a valid filter name.
+
+```typescript
+isValidFilter(filter: string): filter is FiltersName
+```
+
+<ParamField path="filter" type="string" required>
+  The filter name to validate
+</ParamField>
+
+#### toArray
+
+Convert current filters to array of FFmpeg filter strings.
+
+```typescript
+toArray(): string[]
+```
+
+<ResponseField name="return" type="string[]">
+  Array of FFmpeg filter strings
+</ResponseField>
+
+#### toJSON
+
+Convert current filters to JSON object.
+
+```typescript
+toJSON(): Record<keyof QueueFilters, string>
+```
+
+<ResponseField name="return" type="Record<keyof QueueFilters, string>">
+  Object mapping filter names to their FFmpeg strings
+</ResponseField>
+
+#### toString
+
+Get string representation of current filters for FFmpeg.
+
+```typescript
+toString(): string
+```
+
+<ResponseField name="return" type="string">
+  Comma-separated FFmpeg filter string
+</ResponseField>
+
+## AFilterGraph
+
+Provides a snapshot view of all active audio filters.
+
+### Properties
+
+<ResponseField name="ffmpeg" type="Filters[]">
+  Currently active FFmpeg filters
+</ResponseField>
+
+<ResponseField name="equalizer" type="EqualizerBand[]">
+  Current equalizer band settings
+</ResponseField>
+
+<ResponseField name="biquad" type="BiquadFilters | null">
+  Current biquad filter name
+</ResponseField>
+
+<ResponseField name="filters" type="PCMFilters[]">
+  Current DSP filters
+</ResponseField>
+
+<ResponseField name="volume" type="VolumeTransformer | null">
+  Volume transformer instance
+</ResponseField>
+
+<ResponseField name="resampler" type="Resampler | null">
+  Resampler instance
+</ResponseField>
+
+### Methods
+
+#### dump
+
+Dump current filter state to a plain object.
+
+```typescript
+dump(): FilterGraph
+```
+
+<ResponseField name="return" type="FilterGraph">
+  Object containing:
+  - `ffmpeg`: Active FFmpeg filters
+  - `equalizer`: Equalizer band settings
+  - `biquad`: Biquad filter name
+  - `filters`: DSP filters
+  - `volume`: Volume level (0-100)
+  - `sampleRate`: Sample rate in Hz
+</ResponseField>
+
+**Example:**
+```typescript
+const filterState = queue.filters.graph.dump();
+console.log('Active filters:', filterState.ffmpeg);
+console.log('Volume:', filterState.volume);
+console.log('Sample rate:', filterState.sampleRate);
+```
+
+## Usage Example
+
+```typescript
+import { GuildQueue } from 'discord-player';
+
+// Access audio filters from queue
+const queue: GuildQueue = ...;
+const filters = queue.filters;
+
+// Apply equalizer preset
+await filters.equalizer?.setEQ(filters.equalizerPresets.Rock);
+
+// Enable FFmpeg filters
+await filters.ffmpeg.setFilters(['bassboost', '8D', 'nightcore']);
+
+// Set volume
+filters.volume?.setVolume(75);
+
+// Apply biquad filter
+await filters.biquad?.setFilters('lowpass');
+
+// Get current filter state
+const state = filters.graph.dump();
+console.log('Current filters:', state);
+
+// Replay track with new filters
+await filters.triggerReplay();
+```
+
+## Related
+
+- [StreamDispatcher](/api/stream-dispatcher) - Audio stream dispatcher
+- [AudioFilters](/api/audio-filters) - FFmpeg audio filters utility
+- [GuildQueue](/api/guild-queue) - Guild queue class
