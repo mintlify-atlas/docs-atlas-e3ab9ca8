@@ -121,6 +121,7 @@
             "pages": [
               "api/hooks/use-main-player",
               "api/hooks/use-queue",
+              "api/hooks/use-player",
               "api/hooks/use-history",
               "api/hooks/use-timeline",
               "api/hooks/use-metadata",

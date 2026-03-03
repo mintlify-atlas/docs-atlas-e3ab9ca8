@@ -1,0 +1,201 @@
+---
+title: usePlayer
+description: Hook to access the GuildQueuePlayerNode for playback control
+icon: play
+---
+
+The `usePlayer` hook provides access to the `GuildQueuePlayerNode` instance for the current guild, which manages playback controls like play, pause, skip, and seek.
+
+## Usage
+
+```typescript
+import { usePlayer } from 'discord-player';
+
+const player = usePlayer();
+```
+
+## Parameters
+
+<ParamField path="node" type="NodeResolvable" optional>
+  Optional guild queue node resolvable. If not provided, uses the guild from context.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="returns" type="GuildQueuePlayerNode<Meta> | null">
+  The GuildQueuePlayerNode instance for the specified guild, or null if no queue exists
+</ResponseField>
+
+## Type Definition
+
+```typescript
+function usePlayer<Meta = unknown>(): GuildQueuePlayerNode<Meta> | null;
+function usePlayer<Meta = unknown>(node: NodeResolvable): GuildQueuePlayerNode<Meta> | null;
+```
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { usePlayer } from 'discord-player';
+
+// In a command handler wrapped with player.context.provide()
+async function execute(interaction) {
+  const player = usePlayer();
+  
+  if (!player) {
+    return interaction.reply('No music is playing!');
+  }
+  
+  // Control playback
+  player.pause();
+  await interaction.reply('Paused playback');
+}
+```
+
+### Pause Command
+
+```typescript
+import { usePlayer } from 'discord-player';
+
+async function pauseCommand(interaction) {
+  const player = usePlayer();
+  
+  if (!player) {
+    return interaction.reply('Nothing is playing!');
+  }
+  
+  if (player.isPaused()) {
+    return interaction.reply('Already paused!');
+  }
+  
+  player.pause();
+  await interaction.reply('⏸️ Paused playback');
+}
+```
+
+### Resume Command
+
+```typescript
+import { usePlayer } from 'discord-player';
+
+async function resumeCommand(interaction) {
+  const player = usePlayer();
+  
+  if (!player) {
+    return interaction.reply('Nothing is playing!');
+  }
+  
+  if (!player.isPaused()) {
+    return interaction.reply('Not paused!');
+  }
+  
+  player.resume();
+  await interaction.reply('▶️ Resumed playback');
+}
+```
+
+### Skip Command
+
+```typescript
+import { usePlayer } from 'discord-player';
+
+async function skipCommand(interaction) {
+  const player = usePlayer();
+  
+  if (!player) {
+    return interaction.reply('Nothing is playing!');
+  }
+  
+  const success = await player.skip();
+  
+  if (success) {
+    await interaction.reply('⏭️ Skipped track');
+  } else {
+    await interaction.reply('Failed to skip track');
+  }
+}
+```
+
+### Seek Command
+
+```typescript
+import { usePlayer } from 'discord-player';
+
+async function seekCommand(interaction) {
+  const player = usePlayer();
+  const seconds = interaction.options.getInteger('seconds', true);
+  
+  if (!player) {
+    return interaction.reply('Nothing is playing!');
+  }
+  
+  const success = await player.seek(seconds * 1000);
+  
+  if (success) {
+    await interaction.reply(`⏩ Seeked to ${seconds} seconds`);
+  } else {
+    await interaction.reply('Failed to seek');
+  }
+}
+```
+
+### With Custom Guild
+
+```typescript
+import { usePlayer } from 'discord-player';
+
+async function execute(interaction) {
+  // Get player for specific guild
+  const player = usePlayer(someGuild.id);
+  
+  if (!player) {
+    return interaction.reply('No queue exists for that guild!');
+  }
+  
+  console.log('Playing:', player.currentTrack?.title);
+}
+```
+
+### With Typed Metadata
+
+```typescript
+import { usePlayer } from 'discord-player';
+
+interface MyMetadata {
+  channel: TextChannel;
+  requestedBy: User;
+}
+
+async function execute(interaction) {
+  const player = usePlayer<MyMetadata>();
+  
+  if (!player) {
+    return interaction.reply('Nothing is playing!');
+  }
+  
+  // Access queue metadata through player
+  const queue = player.queue;
+  console.log('Channel:', queue.metadata.channel.name);
+  console.log('Requested by:', queue.metadata.requestedBy.tag);
+}
+```
+
+## When to Use
+
+Use `usePlayer()` when you need to:
+
+- Control playback (pause, resume, skip, seek)
+- Check playback state (isPlaying, isPaused, isBuffering)
+- Access the player node for the current guild
+- Get playback timestamps and progress
+
+For accessing the queue itself or track information, use `useQueue()` instead.
+
+## Related
+
+- [useQueue](/api/hooks/use-queue) - Access the guild queue
+- [useHistory](/api/hooks/use-history) - Access queue history
+- [useTimeline](/api/hooks/use-timeline) - Control playback timeline
+- [GuildQueuePlayerNode](/api/guild-queue-player-node) - Player node API reference
